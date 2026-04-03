@@ -1,0 +1,149 @@
+import os
+import requests
+from langchain_core.tools import tool
+
+
+GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
+
+
+def _get_headers():
+    return {"Authorization": f"Bearer {os.environ['META_ACCESS_TOKEN']}"}
+
+
+def _ig_account_id():
+    return os.environ["INSTAGRAM_ACCOUNT_ID"]
+
+
+@tool
+def get_instagram_profile() -> dict:
+    """Get the Instagram Business account profile info including follower count, media count, and bio."""
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}"
+    params = {"fields": "username,name,biography,followers_count,follows_count,media_count"}
+    resp = requests.get(url, params=params, headers=_get_headers())
+    resp.raise_for_status()
+    return resp.json()
+
+
+@tool
+def get_recent_media(limit: int = 10) -> list[dict]:
+    """Get recent Instagram posts with engagement metrics. Use this to understand what content performs well."""
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media"
+    params = {
+        "fields": "id,caption,timestamp,like_count,comments_count,media_type,permalink",
+        "limit": limit,
+    }
+    resp = requests.get(url, params=params, headers=_get_headers())
+    resp.raise_for_status()
+    return resp.json().get("data", [])
+
+
+@tool
+def get_media_insights(media_id: str) -> dict:
+    """Get detailed insights for a specific post (impressions, reach, engagement).
+    Args:
+        media_id: The Instagram media ID to get insights for.
+    """
+    url = f"{GRAPH_API_BASE}/{media_id}/insights"
+    params = {"metric": "impressions,reach,engagement,saved"}
+    resp = requests.get(url, params=params, headers=_get_headers())
+    resp.raise_for_status()
+    return resp.json().get("data", [])
+
+
+@tool
+def get_account_insights(period: str = "day", days: int = 7) -> dict:
+    """Get account-level insights like impressions, reach, and follower count over time.
+    Args:
+        period: The aggregation period - 'day' or 'week'.
+        days: Number of days to look back (max 30).
+    """
+    from datetime import datetime, timedelta
+
+    until = datetime.now()
+    since = until - timedelta(days=days)
+
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}/insights"
+    params = {
+        "metric": "impressions,reach,follower_count",
+        "period": period,
+        "since": int(since.timestamp()),
+        "until": int(until.timestamp()),
+    }
+    resp = requests.get(url, params=params, headers=_get_headers())
+    resp.raise_for_status()
+    return resp.json().get("data", [])
+
+
+@tool
+def publish_photo_post(image_url: str, caption: str) -> dict:
+    """Publish a photo post to Instagram. The image must be a publicly accessible URL.
+    Args:
+        image_url: A publicly accessible URL of the image to post.
+        caption: The post caption including hashtags.
+    """
+    # Step 1: Create media container
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media"
+    payload = {"image_url": image_url, "caption": caption}
+    resp = requests.post(url, data=payload, headers=_get_headers())
+    resp.raise_for_status()
+    container_id = resp.json()["id"]
+
+    # Step 2: Publish the container
+    publish_url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media_publish"
+    publish_resp = requests.post(
+        publish_url, data={"creation_id": container_id}, headers=_get_headers()
+    )
+    publish_resp.raise_for_status()
+    return publish_resp.json()
+
+
+@tool
+def publish_carousel_post(image_urls: list[str], caption: str) -> dict:
+    """Publish a carousel post (multiple images) to Instagram.
+    Args:
+        image_urls: List of publicly accessible image URLs (2-10 images).
+        caption: The post caption including hashtags.
+    """
+    # Step 1: Create individual media containers
+    children_ids = []
+    for img_url in image_urls:
+        url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media"
+        payload = {"image_url": img_url, "is_carousel_item": True}
+        resp = requests.post(url, data=payload, headers=_get_headers())
+        resp.raise_for_status()
+        children_ids.append(resp.json()["id"])
+
+    # Step 2: Create carousel container
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media"
+    payload = {
+        "media_type": "CAROUSEL",
+        "children": ",".join(children_ids),
+        "caption": caption,
+    }
+    resp = requests.post(url, data=payload, headers=_get_headers())
+    resp.raise_for_status()
+    container_id = resp.json()["id"]
+
+    # Step 3: Publish
+    publish_url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media_publish"
+    publish_resp = requests.post(
+        publish_url, data={"creation_id": container_id}, headers=_get_headers()
+    )
+    publish_resp.raise_for_status()
+    return publish_resp.json()
+
+
+@tool
+def exchange_for_long_lived_token() -> str:
+    """Exchange the current short-lived token for a long-lived one (60 days). Run this once after getting a new token."""
+    url = f"{GRAPH_API_BASE}/oauth/access_token"
+    params = {
+        "grant_type": "fb_exchange_token",
+        "client_id": os.environ["META_APP_ID"],
+        "client_secret": os.environ["META_APP_SECRET"],
+        "fb_exchange_token": os.environ["META_ACCESS_TOKEN"],
+    }
+    resp = requests.get(url, params=params)
+    resp.raise_for_status()
+    data = resp.json()
+    return f"Long-lived token (update your .env): {data['access_token'][:20]}... expires in {data.get('expires_in', 'unknown')} seconds"

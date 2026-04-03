@@ -1,0 +1,3 @@
+- [User Profile](memory/user_profile.md) — B2B sandwich supplier, food trucks & coffee shops
+- [Instagram Agent System](memory/project_instagram_agents.md) — Multi-agent Instagram management system plan
+- [Image Style](memory/feedback_image_style.md) — FLUX model, RAW photorealistic prompts, vegetarian only
