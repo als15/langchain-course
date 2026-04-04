@@ -134,6 +134,28 @@ def publish_carousel_post(image_urls: list[str], caption: str) -> dict:
 
 
 @tool
+def publish_story(image_url: str) -> dict:
+    """Publish an image as an Instagram Story.
+    Args:
+        image_url: A publicly accessible URL of the image to post as a story.
+    """
+    # Step 1: Create story media container
+    url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media"
+    payload = {"image_url": image_url, "media_type": "STORIES"}
+    resp = requests.post(url, data=payload, headers=_get_headers())
+    resp.raise_for_status()
+    container_id = resp.json()["id"]
+
+    # Step 2: Publish the container
+    publish_url = f"{GRAPH_API_BASE}/{_ig_account_id()}/media_publish"
+    publish_resp = requests.post(
+        publish_url, data={"creation_id": container_id}, headers=_get_headers()
+    )
+    publish_resp.raise_for_status()
+    return publish_resp.json()
+
+
+@tool
 def exchange_for_long_lived_token() -> str:
     """Exchange the current short-lived token for a long-lived one (60 days). Run this once after getting a new token."""
     url = f"{GRAPH_API_BASE}/oauth/access_token"

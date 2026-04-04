@@ -23,9 +23,10 @@ def content_strategist_node(state: OrchestratorState) -> dict:
 
     return _run_agent(
         create_content_strategist,
-        "Plan new content for this week. Check what we already have in the queue, "
-        "review recent analytics, check our Instagram performance, and add 3-5 new "
-        "posts to the content queue. Rotate through content pillars.",
+        "Plan content for this week. Check what we already have in the queue, "
+        "review recent analytics, check our Instagram performance. "
+        "Fill the week to targets: 5 feed posts (photo) + 7 stories. "
+        "Rotate through content pillars and menu items.",
         state,
     )
 
@@ -96,7 +97,30 @@ def content_publisher_node(state: OrchestratorState) -> dict:
 
     return _run_agent(
         create_content_publisher,
-        "Check for approved posts and publish them to Instagram.",
+        "Check for approved feed posts (content_type='photo') and publish them to Instagram.",
+        state,
+    )
+
+
+def content_reviewer_node(state: OrchestratorState) -> dict:
+    from agents.content_reviewer import create_content_reviewer
+
+    return _run_agent(
+        create_content_reviewer,
+        "Review this week's published content performance. Compare against benchmarks. "
+        "If posts are underperforming, revise upcoming scheduled content (captions, "
+        "visual directions, pillars) and reset to draft for re-approval. "
+        "If performance is fine, report no changes needed.",
+        state,
+    )
+
+
+def story_publisher_node(state: OrchestratorState) -> dict:
+    from agents.content_publisher import create_story_publisher
+
+    return _run_agent(
+        create_story_publisher,
+        "Check for approved stories (content_type='story') and publish them to Instagram.",
         state,
     )
 
@@ -110,6 +134,8 @@ def router(state: OrchestratorState) -> str:
         "lead_gen": "lead_generator",
         "engagement": "engagement_advisor",
         "publish": "content_publisher",
+        "publish_stories": "story_publisher",
+        "content_review": "content_reviewer",
     }
     return routing.get(state["task_type"], END)
 
@@ -126,6 +152,8 @@ def build_orchestrator():
     graph.add_node("lead_generator", lead_generator_node)
     graph.add_node("engagement_advisor", engagement_advisor_node)
     graph.add_node("content_publisher", content_publisher_node)
+    graph.add_node("story_publisher", story_publisher_node)
+    graph.add_node("content_reviewer", content_reviewer_node)
 
     graph.add_conditional_edges(START, router)
 
@@ -137,6 +165,8 @@ def build_orchestrator():
         "lead_generator",
         "engagement_advisor",
         "content_publisher",
+        "story_publisher",
+        "content_reviewer",
     ]:
         graph.add_edge(node, END)
 

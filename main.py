@@ -17,6 +17,8 @@ TASKS = {
     "leads": "lead_gen",
     "engagement": "engagement",
     "publish": "publish",
+    "stories": "publish_stories",
+    "review": "content_review",
 }
 
 
@@ -97,7 +99,9 @@ def main():
     print("  python main.py analytics       - Run analytics")
     print("  python main.py leads           - Run lead generation")
     print("  python main.py engagement      - Run engagement advisor")
-    print("  python main.py publish         - Publish approved posts")
+    print("  python main.py publish         - Publish approved feed posts")
+    print("  python main.py stories         - Publish approved stories")
+    print("  python main.py review          - Review performance & adjust upcoming content")
     print()
     print("Other tools:")
     print("  python review.py               - Review dashboard (queue, leads, tasks)")

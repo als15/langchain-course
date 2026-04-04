@@ -51,6 +51,17 @@ async def safe_run(task_type: str, bot):
         if task_type == "image_generation" and chat_id:
             await _send_pending_approvals(bot)
 
+        # After content review, run image gen for any revised posts reset to draft
+        if task_type == "content_review" and chat_id:
+            db = get_db()
+            drafts = db.execute(
+                "SELECT COUNT(*) as cnt FROM content_queue "
+                "WHERE status = 'draft' AND visual_direction IS NOT NULL AND image_url IS NULL"
+            ).fetchone()
+            if drafts["cnt"] > 0:
+                log.info(f"Content review revised {drafts['cnt']} posts, triggering image generation...")
+                await safe_run("image_generation", bot)
+
     except Exception as e:
         log.error(f"Failed {task_type}: {e}")
         if chat_id:
@@ -108,25 +119,30 @@ async def main():
     # Set up scheduler
     scheduler = AsyncIOScheduler()
 
-    # Content planning: Monday 07:00
-    scheduler.add_job(safe_run, "cron", day_of_week="mon", hour=7,
+    # ── Sunday Morning Planning Session ──
+    # 07:00 — Content strategist creates full week (5 posts + 7 stories)
+    scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=7,
                       args=["content_planning", bot], id="content_planning")
-
-    # Design review: Monday 08:00 (after content planning)
-    scheduler.add_job(safe_run, "cron", day_of_week="mon", hour=8,
+    # 08:00 — Design review on all drafts
+    scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=8,
                       args=["design_review", bot], id="design_review")
-
-    # Image generation: every 6 hours (processes drafts)
-    scheduler.add_job(safe_run, "cron", hour="*/6",
+    # 09:00 — Generate images for everything, send to Telegram for approval
+    scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=9,
                       args=["image_generation", bot], id="image_generation")
 
-    # Publish approved posts: weekdays at noon
-    scheduler.add_job(safe_run, "cron", day_of_week="mon-fri", hour=12,
+    # ── Daily Autopilot Publishing (checks every hour, publishes if scheduled time has passed) ──
+    scheduler.add_job(safe_run, "cron", minute=0,
                       args=["publish", bot], id="publish")
+    scheduler.add_job(safe_run, "cron", minute=0,
+                      args=["publish_stories", bot], id="publish_stories")
 
-    # Analytics: daily at 18:00
+    # ── Daily Performance Review ──
+    # 18:00 — Analytics collects metrics
     scheduler.add_job(safe_run, "cron", hour=18,
                       args=["analytics", bot], id="analytics")
+    # 19:00 — Content reviewer checks performance, revises upcoming posts if needed
+    scheduler.add_job(safe_run, "cron", hour=19,
+                      args=["content_review", bot], id="content_review")
 
     # Lead generation: Wednesday 10:00
     scheduler.add_job(safe_run, "cron", day_of_week="wed", hour=10,

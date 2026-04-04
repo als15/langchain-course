@@ -43,7 +43,7 @@ def db_add_content_item(
     Args:
         scheduled_date: Target date like '2026-04-07'.
         scheduled_time: Target time like '08:00'.
-        content_type: Type: 'photo', 'carousel', or 'reel_idea'.
+        content_type: Type: 'photo' or 'story'.
         content_pillar: One of: 'product', 'behind_scenes', 'customer_spotlight', 'industry_tips', 'social_proof'.
         topic: Short topic description.
         caption: Full caption text.

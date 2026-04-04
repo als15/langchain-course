@@ -1,37 +1,58 @@
 from langgraph.prebuilt import create_react_agent
 from config import get_llm
 
-from tools.instagram import publish_photo_post, publish_carousel_post
+from tools.instagram import publish_photo_post, publish_story
 from tools.db_tools import db_get_content_queue, db_update_post_status
 
-SYSTEM_PROMPT = """You are the Content Publisher for Capa & Co.
+FEED_PROMPT = """You are the Content Publisher for Capa & Co.
 
-YOUR TASK: Publish approved content to Instagram.
+YOUR TASK: Publish approved FEED POSTS to Instagram when their scheduled time has arrived.
 
 PROCESS:
-1. Get approved posts ready to publish (db_get_content_queue with status='approved')
-2. For each approved post that has an image_url:
+1. Get approved posts (db_get_content_queue with status='approved')
+2. For each approved post where content_type='photo' and image_url is set:
+   - Check scheduled_date and scheduled_time — only publish if the scheduled datetime
+     is today or in the past. Do NOT publish posts scheduled for the future.
    - Combine the caption and hashtags into a single caption string
-   - Publish via publish_photo_post (or publish_carousel_post for carousels)
+   - Publish via publish_photo_post
    - On success: update status to 'published' with the instagram_media_id
    - On failure: update status to 'failed'
-3. If no approved posts, report that the queue is empty.
+3. SKIP any post with content_type='story' — those are published separately.
 
 IMPORTANT:
 - Only publish posts with status 'approved' AND a valid image_url
-- Skip any post without an image_url
 - The image_url must be a publicly accessible URL
+- Respect the scheduled_date and scheduled_time — do not publish early
+"""
+
+STORY_PROMPT = """You are the Story Publisher for Capa & Co.
+
+YOUR TASK: Publish approved STORIES to Instagram when their scheduled time has arrived.
+
+PROCESS:
+1. Get approved posts (db_get_content_queue with status='approved')
+2. For each approved post where content_type='story' and image_url is set:
+   - Check scheduled_date and scheduled_time — only publish if the scheduled datetime
+     is today or in the past. Do NOT publish posts scheduled for the future.
+   - Publish via publish_story (stories don't use captions on Instagram)
+   - On success: update status to 'published' with the instagram_media_id
+   - On failure: update status to 'failed'
+3. SKIP any post with content_type='photo' — those are published separately.
+
+IMPORTANT:
+- Only publish posts with status 'approved' AND a valid image_url
+- The image_url must be a publicly accessible URL
+- Respect the scheduled_date and scheduled_time — do not publish early
 """
 
 
 def create_content_publisher():
     llm = get_llm(temperature=0.2)
+    tools = [db_get_content_queue, publish_photo_post, db_update_post_status]
+    return create_react_agent(model=llm, tools=tools, prompt=FEED_PROMPT)
 
-    tools = [
-        db_get_content_queue,
-        publish_photo_post,
-        publish_carousel_post,
-        db_update_post_status,
-    ]
 
-    return create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+def create_story_publisher():
+    llm = get_llm(temperature=0.2)
+    tools = [db_get_content_queue, publish_story, db_update_post_status]
+    return create_react_agent(model=llm, tools=tools, prompt=STORY_PROMPT)
