@@ -66,7 +66,9 @@ VISUAL DIRECTION — CRITICAL RULES:
 - The image generator will look up the expert-crafted prompt for that name automatically.
 - For stories, use items from "Vibe Images" or "Optional Coffee Extras" categories.
 - For feed posts, use items from food categories (Sandwiches, Salads, Pastries, Cookies, Cakes).
-- Rotate through different categories — don't repeat the same dish in close succession.
+- NEVER use the same visual_direction twice in one week. Every post must feature a DIFFERENT dish or vibe.
+- Spread across at least 4 different categories (e.g. don't put 3 sandwiches in one week).
+- Check the existing queue first and avoid any visual_direction that's already there.
 
 AVAILABLE MENU ITEMS (use these EXACT names for visual_direction):
 {menu_items}
