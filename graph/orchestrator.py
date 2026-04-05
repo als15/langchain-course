@@ -8,6 +8,23 @@ from db.schema import init_db
 from db.connection import get_db
 
 
+def _get_culinary_brief() -> str:
+    """Run the culinary supervisor and return its brief for other agents to use."""
+    from agents.culinary_supervisor import create_culinary_supervisor
+
+    try:
+        agent = create_culinary_supervisor()
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content":
+                "Review the current content feed and recent performance. "
+                "Provide a concise culinary brief: what's missing, what's seasonal right now "
+                "in Israel, and 3-5 specific content recommendations for the coming week."}]}
+        )
+        return result["messages"][-1].content
+    except Exception as e:
+        return f"(Culinary brief unavailable: {e})"
+
+
 def _run_agent(agent_factory, task_message: str, state: OrchestratorState) -> dict:
     """Helper to invoke a sub-agent and capture results."""
     agent = agent_factory()
@@ -18,15 +35,35 @@ def _run_agent(agent_factory, task_message: str, state: OrchestratorState) -> di
     return {"result_summary": summary, "messages": state.get("messages", [])}
 
 
+def culinary_supervisor_node(state: OrchestratorState) -> dict:
+    from agents.culinary_supervisor import create_culinary_supervisor
+
+    return _run_agent(
+        create_culinary_supervisor,
+        "Review the current content feed and recent performance. Analyze what's missing, "
+        "what's seasonal right now in Israel, what's trending in the Israeli food scene, "
+        "and what our B2B audience (food trucks, coffee shops) wants to see. "
+        "Provide a culinary brief with 3-5 specific content recommendations for the coming week, "
+        "including dish/topic, why now, and suggested content pillar.",
+        state,
+    )
+
+
 def content_strategist_node(state: OrchestratorState) -> dict:
     from agents.content_strategist import create_content_strategist
+
+    # Get culinary guidance first
+    culinary_brief = _get_culinary_brief()
 
     return _run_agent(
         create_content_strategist,
         "Plan content for this week. Check what we already have in the queue, "
         "review recent analytics, check our Instagram performance. "
         "Fill the week to targets: 5 feed posts (photo) + 7 stories. "
-        "Rotate through content pillars and menu items.",
+        "Rotate through content pillars and menu items.\n\n"
+        "IMPORTANT — The Culinary Supervisor has reviewed our feed and provided this brief. "
+        "Use these recommendations to guide your content choices:\n\n"
+        f"--- CULINARY BRIEF ---\n{culinary_brief}\n--- END BRIEF ---",
         state,
     )
 
@@ -105,12 +142,18 @@ def content_publisher_node(state: OrchestratorState) -> dict:
 def content_reviewer_node(state: OrchestratorState) -> dict:
     from agents.content_reviewer import create_content_reviewer
 
+    # Get culinary guidance for review context
+    culinary_brief = _get_culinary_brief()
+
     return _run_agent(
         create_content_reviewer,
         "Review this week's published content performance. Compare against benchmarks. "
         "If posts are underperforming, revise upcoming scheduled content (captions, "
         "visual directions, pillars) and reset to draft for re-approval. "
-        "If performance is fine, report no changes needed.",
+        "If performance is fine, report no changes needed.\n\n"
+        "The Culinary Supervisor has provided feedback on our content direction. "
+        "Consider this when deciding what to revise:\n\n"
+        f"--- CULINARY BRIEF ---\n{culinary_brief}\n--- END BRIEF ---",
         state,
     )
 
@@ -127,6 +170,7 @@ def story_publisher_node(state: OrchestratorState) -> dict:
 
 def router(state: OrchestratorState) -> str:
     routing = {
+        "culinary_review": "culinary_supervisor",
         "content_planning": "content_strategist",
         "design_review": "design_supervisor",
         "image_generation": "image_generator",
@@ -145,6 +189,7 @@ def build_orchestrator():
 
     graph = StateGraph(OrchestratorState)
 
+    graph.add_node("culinary_supervisor", culinary_supervisor_node)
     graph.add_node("content_strategist", content_strategist_node)
     graph.add_node("design_supervisor", design_review_node)
     graph.add_node("image_generator", image_generator_node)
@@ -158,6 +203,7 @@ def build_orchestrator():
     graph.add_conditional_edges(START, router)
 
     for node in [
+        "culinary_supervisor",
         "content_strategist",
         "design_supervisor",
         "image_generator",

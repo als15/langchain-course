@@ -178,6 +178,78 @@ Crispy cheese sambousek, half-moon shape with mixed cheese and herbs, golden bli
 
 Spinach and cheese phyllo roll with butter-brushed flaky layers, spinach, mixed cheeses and walnuts, sliced to reveal the filling, pale stone background, close editorial shot with gentle crumbs and natural light.
 
+### Babka
+
+Dark chocolate babka with rich swirled filling, buttery brioche layers twisted and visible in cross-section, glossy chocolate glaze, a few cocoa nibs scattered, sliced on parchment over pale wood board, 45-degree editorial bakery shot, warm natural light.
+
+### Sfogliatella
+
+Crispy sfogliatella with dozens of thin flaky shell layers, dusted with powdered sugar, ricotta and candied citrus filling peeking from the opening, matte beige ceramic plate, close 45-degree hero shot, golden caramelized texture, premium artisanal bakery styling.
+
+### Bomboloni
+
+Soft Italian bomboloni doughnut with golden exterior, generously filled with vanilla pastry cream oozing from the center, light sugar coating, matte grey plate on warm ivory stone, close editorial bakery shot, bright natural daylight, indulgent but refined.
+
+### Biscotti
+
+Almond biscotti sliced to show studded nuts and dried cranberries, twice-baked golden crust, two pieces leaning casually beside a small espresso cup, parchment paper on pale stone, overhead minimalist bakery still life, Mediterranean cafe mood.
+
+### Santa Rosa
+
+Santa Rosa pastry with puff pastry shell, filled with ricotta cream and amarena cherry, dusted with powdered sugar, delicate Italian pastry on matte ceramic plate, fresh cherry accent, close 45-degree shot, soft morning light, elegant patisserie styling.
+
+### Maritozzo
+
+Soft Roman maritozzo bun split and generously stuffed with whipped cream, airy brioche texture with subtle sweetness, matte beige plate on warm ivory background, 45-degree editorial hero shot, clean minimal styling, gentle powdered sugar dust.
+
+### Cornetto
+
+Italian cornetto with glossy golden surface and delicate flaky layers, slightly curved crescent shape, subtle apricot glaze, single hero pastry on matte grey plate, a few crumbs, bright natural light, premium Mediterranean bakery morning mood.
+
+### Ricotta Cheesecake
+
+Slice of Italian ricotta cheesecake with light creamy filling, subtle lemon zest visible, thin biscuit base, dusted with powdered sugar, fresh berry on the side, matte ceramic plate with brass fork, soft daylight, refined bakery dessert photography.
+
+### Tiramisu
+
+Individual tiramisu in a clear glass showing layered mascarpone cream and coffee-soaked savoiardi, dusted with cocoa powder, elegant 45-degree close shot, ivory stone background, brass spoon, premium bakery cafe dessert styling.
+
+### Chocolate Rugelach
+
+Chocolate rugelach rolled into crescent shapes with dark chocolate and walnut filling visible at the spiral, golden and slightly caramelized, arranged simply on parchment, overhead shot on pale wood board, warm artisanal Israeli bakery aesthetic.
+
+### Halva Pastry
+
+Halva-filled pastry with crumbled tahini halva, pistachios and honey glaze, flaky buttery layers, close hero shot on matte ceramic plate, warm neutral background, refined Middle Eastern bakery styling, soft natural light.
+
+### Challah
+
+Braided challah bread with glossy egg wash, golden crust and sesame seeds, soft pillowy interior hinted at a small tear, pale wood board with linen cloth, warm Friday afternoon bakery light, overhead or slight angle, elegant Israeli bakery tradition.
+
+### Honey Cake
+
+Slice of honey cake with moist dense crumb, warm amber color, thin glaze and walnut piece on top, rustic but refined plating on matte ceramic, brass fork, ivory background, cozy bakery dessert shot for Rosh Hashana or everyday sweetness.
+
+### Patisserie Cream Puff
+
+Choux pastry cream puff filled with rich vanilla patisserie cream, light choux shell with craquelin topping, dusted with powdered sugar, close 45-degree hero shot on matte grey plate, clean minimal bakery styling, bright daylight.
+
+### Chocolate Cream Danish
+
+Flaky Danish pastry with dark chocolate pastry cream filling, glossy chocolate drizzle and cocoa nibs, golden laminated layers, 45-degree editorial shot on parchment over pale stone, premium artisanal bakery photography.
+
+### Hazelnut Praline Croissant
+
+Croissant filled with house-made hazelnut praline cream, chopped roasted hazelnuts on top, rich caramel tones and flaky golden layers, close hero shot on matte beige plate, soft natural light, indulgent premium bakery styling.
+
+### Pistachio Roll
+
+Pistachio cream roll with bright green pistachio filling visible in cross-section, flaky pastry, crushed pistachios on top, matte ceramic plate on warm ivory stone, overhead or 45-degree shot, vibrant but refined Mediterranean bakery aesthetic.
+
+### Peanut Butter Cream Pastry
+
+Puff pastry shell filled with smooth peanut butter cream, drizzled with dark chocolate and chopped roasted peanuts, rich textures and warm tones, close editorial bakery shot on parchment, pale wood background, indulgent but elegant.
+
 ## Cookies
 
 ### Classic Chocolate Chip
@@ -279,6 +351,76 @@ A barista hand placing a cappuccino next to a pastry on a matte ceramic plate, i
 ### Seasonal Mediterranean mood
 
 A refined still life with pastries, pistachios, pomegranate, olive leaves, parchment and ceramic plates on a pale stone surface, top-down composition, elegant Mediterranean bakery visual identity.
+
+## Texture & Process Breakers
+
+### Fresh fruit shake
+
+Tall glass of fresh fruit shake with vibrant layered colors, condensation droplets on the glass, a striped straw, fresh fruit slice on the rim, bright ivory counter, soft natural daylight, clean editorial lifestyle bakery shot.
+
+### Fresh orange juice
+
+Freshly squeezed orange juice in a clear glass, bright pulpy texture, halved oranges nearby on pale wood board, morning sunlight, clean minimal bakery cafe still life, warm Mediterranean energy.
+
+### Single pomegranate
+
+A whole pomegranate partially split open revealing jewel-red seeds, placed on warm ivory stone with a few scattered seeds, dramatic natural side light, moody but clean food photography, rich textures.
+
+### Fresh tomatoes
+
+Cluster of ripe cherry tomatoes on the vine, glistening with tiny water droplets, placed on parchment paper over pale stone, overhead shot, bright natural light, simple ingredient beauty, bakery deli aesthetic.
+
+### Fresh herbs bundle
+
+A bundle of fresh herbs — basil, mint, parsley, dill — loosely tied with twine on a pale wood board, soft natural light, close editorial shot, green and earthy tones, artisanal bakery ingredient styling.
+
+### Avocado halves
+
+Two ripe avocado halves showing the pit and creamy green flesh, placed on matte ceramic plate, pale stone background, overhead minimal composition, soft daylight, fresh premium ingredient photography.
+
+### Raw dough ball
+
+A smooth round ball of fresh dough dusted with flour on a wooden board, baker's hands lightly visible at the edges, flour dust in the air catching soft morning light, warm artisanal bakery process shot.
+
+### Dough being shaped
+
+Hands shaping bread dough on a floured wooden surface, close-up editorial shot showing the stretch and texture of the dough, flour dust, warm natural light from the side, authentic bakery process moment.
+
+### Baker at the oven
+
+A baker sliding a tray into a warm oven, shot from behind at a slight angle, golden light spilling from the oven, professional kitchen setting but clean and minimal, warm editorial bakery lifestyle photography.
+
+### Baker hands with flour
+
+Close-up of a baker's hands covered in flour, kneading or holding dough, warm ivory apron visible, soft natural light, intimate artisanal bakery portrait, focus on hands and texture.
+
+### Oven golden glow
+
+Close shot of a bakery oven interior with golden pastries baking inside, warm amber glow, soft focus on the edges, heat shimmer implied, cozy editorial bakery atmosphere.
+
+### Eggs in a bowl
+
+Fresh eggs in a rustic ceramic bowl on a pale linen cloth, soft natural morning light, clean negative space, simple ingredient still life, warm artisanal bakery brand aesthetic.
+
+### Butter and flour
+
+A block of cold butter partially unwrapped on parchment paper next to a small pile of flour, pale wood surface, soft daylight, minimalist bakery ingredient still life, elegant and tactile.
+
+### Olive oil pour
+
+A thin stream of extra virgin olive oil being poured from a bottle onto a wooden spoon or bread, golden oil catching the light, warm ivory background, close editorial food photography, Mediterranean mood.
+
+### Sesame and seeds
+
+A small ceramic bowl of white and black sesame seeds with scattered seeds on ivory stone, za'atar herbs nearby, soft overhead light, minimal bakery ingredient flat lay, earthy and warm.
+
+### Honey drizzle
+
+A wooden honey dipper with thick golden honey dripping in a slow stream, glass honey jar nearby, warm ivory background, close macro-style editorial shot, rich amber tones, artisanal bakery sweetness.
+
+### Pistachio scatter
+
+Bright green pistachios — some shelled, some whole — scattered casually on parchment paper over pale stone, overhead shot, natural light, jewel-like green tones, Mediterranean bakery ingredient styling.
 
 ## Optional Coffee Extras
 

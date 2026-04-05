@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Leads & Engagement{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Leads & Engagement</h1>
+
+<!-- Tabs -->
+<div class="tabs mb-6">
+    <a href="/leads" class="tab active">Leads</a>
+    <a href="/engagement" class="tab">Engagement Tasks</a>
+</div>
+
+<!-- Lead Funnel -->
+{% if funnel %}
+<div class="section-label">Lead Funnel</div>
+<div class="funnel mb-6">
+    {% for status, color in [('discovered', 'var(--status-discovered)'), ('researched', 'var(--status-researched)'), ('contacted', 'var(--status-contacted)'), ('converted', 'var(--status-converted)')] %}
+    {% if not loop.first %}<span class="funnel-arrow">&rarr;</span>{% endif %}
+    <div class="funnel-stage" style="background: {{ color }}15; border: 1px solid {{ color }}30;">
+        <div class="funnel-stage-count" style="color: {{ color }}">{{ funnel.get(status, 0) }}</div>
+        <div class="funnel-stage-label">{{ status }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="filter-bar">
+    <a href="/leads" class="filter-pill {% if not status_filter %}active{% endif %}">All</a>
+    {% for status in ['discovered', 'researched', 'contacted', 'converted'] %}
+    <a href="/leads?status={{ status }}{% if type_filter %}&type={{ type_filter }}{% endif %}"
+       class="filter-pill {% if status_filter == status %}active{% endif %}">{{ status.title() }}</a>
+    {% endfor %}
+
+    <span style="margin-left: 16px;"></span>
+    <select onchange="location.href='/leads?type='+this.value+'{% if status_filter %}&status={{ status_filter }}{% endif %}'"
+            style="padding:5px 12px;border-radius:20px;border:1px solid rgba(26,26,24,0.12);font-family:var(--font-sans);font-size:12px;background:transparent;">
+        <option value="">All Types</option>
+        {% for bt in business_types %}
+        <option value="{{ bt }}" {% if type_filter == bt %}selected{% endif %}>{{ bt.replace('_', ' ').title() }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Leads table -->
+{% if leads %}
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Business</th>
+                    <th>Handle</th>
+                    <th>Type</th>
+                    <th>Location</th>
+                    <th>Followers</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for lead in leads %}
+                <tr>
+                    <td class="text-sm" style="font-weight:500">{{ lead.business_name or '—' }}</td>
+                    <td class="text-sm">
+                        {% if lead.instagram_handle %}
+                        <a href="https://instagram.com/{{ lead.instagram_handle }}" target="_blank" rel="noopener"
+                           style="color:var(--brand-green)">@{{ lead.instagram_handle }}</a>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-sm">{{ (lead.business_type or '').replace('_', ' ') }}</td>
+                    <td class="text-sm text-muted">{{ lead.location or '—' }}</td>
+                    <td class="text-sm">{{ lead.follower_count or '—' }}</td>
+                    <td class="text-sm text-muted">{{ lead.source or '—' }}</td>
+                    <td>
+                        <form hx-post="/leads/{{ lead.id }}/status" hx-target="closest td" hx-swap="innerHTML">
+                            <select name="status" onchange="this.form.requestSubmit()"
+                                    class="badge badge-{{ lead.status }}"
+                                    style="cursor:pointer;border:none;font-family:var(--font-sans);padding:2px 8px;">
+                                {% for s in ['discovered', 'researched', 'contacted', 'converted'] %}
+                                <option value="{{ s }}" {% if lead.status == s %}selected{% endif %}>{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-text">No leads found</div>
+</div>
+{% endif %}
+{% endblock %}

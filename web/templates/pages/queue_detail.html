@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Post #{{ post.id }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="/queue" class="btn btn-secondary btn-sm">&larr; Back to Queue</a>
+    <h1 class="page-title" style="margin-bottom:0">Post #{{ post.id }}</h1>
+    <span class="badge badge-{{ post.status }}">{{ post.status.replace('_', ' ') }}</span>
+</div>
+
+<div class="detail-header">
+    {% if post.image_url %}
+    <img src="{{ post.image_url }}" alt="" class="detail-image" id="detail-img"
+         onclick="this.classList.toggle('lightbox')"
+         style="cursor: zoom-in;">
+    {% else %}
+    <div class="detail-image" style="display:flex;align-items:center;justify-content:center;color:var(--gray-text);">
+        No image generated yet
+    </div>
+    {% endif %}
+
+    <div class="detail-info">
+        <div class="detail-field">
+            <div class="detail-field-label">Schedule</div>
+            <div class="detail-field-value">{{ post.scheduled_date or '—' }} {{ post.scheduled_time or '' }}</div>
+        </div>
+
+        <div class="detail-field">
+            <div class="detail-field-label">Type / Pillar</div>
+            <div class="detail-field-value">{{ post.content_type or '—' }} &middot; {{ (post.content_pillar or '').replace('_', ' ') }}</div>
+        </div>
+
+        <div class="detail-field">
+            <div class="detail-field-label">Topic</div>
+            <div class="detail-field-value rtl">{{ post.topic or '—' }}</div>
+        </div>
+
+        <div class="detail-field" id="caption-field">
+            <div class="detail-field-label">
+                Caption
+                {% if post.status in ('pending_approval', 'draft', 'approved') %}
+                <button class="btn btn-secondary btn-xs" style="margin-left:8px; font-size:11px; padding:2px 8px;"
+                        onclick="document.getElementById('caption-display').style.display='none'; document.getElementById('caption-edit').style.display='block';">
+                    Edit
+                </button>
+                {% endif %}
+            </div>
+            <div class="detail-field-value rtl pre-wrap" id="caption-display">{{ post.caption or '—' }}</div>
+            <form id="caption-edit" style="display:none"
+                  hx-post="/queue/{{ post.id }}/edit-caption"
+                  hx-target="#caption-field"
+                  hx-swap="outerHTML">
+                <textarea name="caption" rows="3" dir="rtl"
+                          style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text); font-family:inherit; resize:vertical;">{{ post.caption or '' }}</textarea>
+                <div class="flex gap-4 mt-2">
+                    <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                    <button type="button" class="btn btn-secondary btn-xs"
+                            onclick="document.getElementById('caption-display').style.display=''; document.getElementById('caption-edit').style.display='none';">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="detail-field" id="hashtags-field">
+            <div class="detail-field-label">
+                Hashtags
+                {% if post.status in ('pending_approval', 'draft', 'approved') %}
+                <button class="btn btn-secondary btn-xs" style="margin-left:8px; font-size:11px; padding:2px 8px;"
+                        onclick="document.getElementById('hashtags-display').style.display='none'; document.getElementById('hashtags-edit').style.display='block';">
+                    Edit
+                </button>
+                {% endif %}
+            </div>
+            <div class="detail-field-value rtl text-sm" id="hashtags-display">{{ post.hashtags or '—' }}</div>
+            <form id="hashtags-edit" style="display:none"
+                  hx-post="/queue/{{ post.id }}/edit-hashtags"
+                  hx-target="#hashtags-field"
+                  hx-swap="outerHTML">
+                <input type="text" name="hashtags" dir="rtl" value="{{ post.hashtags or '' }}"
+                       style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text);">
+                <div class="flex gap-4 mt-2">
+                    <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                    <button type="button" class="btn btn-secondary btn-xs"
+                            onclick="document.getElementById('hashtags-display').style.display=''; document.getElementById('hashtags-edit').style.display='none';">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="detail-field">
+            <div class="detail-field-label">Visual Direction</div>
+            <div class="detail-field-value text-sm">{{ post.visual_direction or '—' }}</div>
+        </div>
+
+        {% if post.notes %}
+        <div class="detail-field">
+            <div class="detail-field-label">Notes</div>
+            <div class="detail-field-value text-sm pre-wrap">{{ post.notes }}</div>
+        </div>
+        {% endif %}
+
+        {% if post.status == 'pending_approval' %}
+        <div class="flex gap-4 mt-4 flex-wrap" id="approval-actions">
+            <button class="btn btn-primary"
+                    hx-post="/queue/{{ post.id }}/approve"
+                    hx-target="#approval-actions"
+                    hx-swap="innerHTML"
+                    hx-confirm="Approve? Image will be upscaled.">
+                Approve
+            </button>
+            <button class="btn btn-secondary"
+                    hx-post="/queue/{{ post.id }}/suggestions"
+                    hx-target="#regen-area"
+                    hx-swap="innerHTML"
+                    hx-indicator="#regen-spinner">
+                Regenerate
+            </button>
+            <button class="btn btn-secondary"
+                    onclick="document.getElementById('direct-regen-form').style.display='block'; this.style.display='none';">
+                Regen + Direction
+            </button>
+            <button class="btn btn-danger"
+                    hx-post="/queue/{{ post.id }}/reject"
+                    hx-target="#approval-actions"
+                    hx-swap="innerHTML"
+                    hx-confirm="Reject this post?">
+                Reject
+            </button>
+        </div>
+
+        <div id="direct-regen-form" style="display:none" class="mt-4">
+            <form hx-post="/queue/{{ post.id }}/direct-regen"
+                  hx-target="#regen-area"
+                  hx-swap="innerHTML"
+                  hx-indicator="#direct-regen-spinner">
+                <div class="detail-field-label mb-2">Your direction</div>
+                <input type="text" name="direction" required
+                       placeholder="e.g. tiramisu close up, babka with chocolate drizzle..."
+                       style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text);">
+                <div class="flex gap-4 mt-3">
+                    <button type="submit" class="btn btn-primary btn-sm">Generate</button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            onclick="document.getElementById('direct-regen-form').style.display='none'; document.querySelector('#approval-actions .btn-secondary:nth-child(3)').style.display='';">
+                        Cancel
+                    </button>
+                </div>
+                <span id="direct-regen-spinner" class="htmx-indicator text-sm text-muted">Generating image & caption...</span>
+            </form>
+        </div>
+
+        {% elif post.status == 'rejected' %}
+        <div class="flex gap-4 mt-4 flex-wrap" id="approval-actions">
+            <button class="btn btn-secondary"
+                    hx-post="/queue/{{ post.id }}/requeue"
+                    hx-target="#approval-actions"
+                    hx-swap="innerHTML"
+                    hx-confirm="Requeue this post for review?">
+                Requeue
+            </button>
+            <button class="btn btn-secondary"
+                    hx-post="/queue/{{ post.id }}/suggestions"
+                    hx-target="#regen-area"
+                    hx-swap="innerHTML"
+                    hx-indicator="#regen-spinner">
+                Regenerate
+            </button>
+            <button class="btn btn-secondary"
+                    onclick="document.getElementById('direct-regen-form-rejected').style.display='block'; this.style.display='none';">
+                Regen + Direction
+            </button>
+        </div>
+
+        <div id="direct-regen-form-rejected" style="display:none" class="mt-4">
+            <form hx-post="/queue/{{ post.id }}/direct-regen"
+                  hx-target="#regen-area"
+                  hx-swap="innerHTML"
+                  hx-indicator="#direct-regen-spinner-rejected">
+                <div class="detail-field-label mb-2">Your direction</div>
+                <input type="text" name="direction" required
+                       placeholder="e.g. tiramisu close up, babka with chocolate drizzle..."
+                       style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text);">
+                <div class="flex gap-4 mt-3">
+                    <button type="submit" class="btn btn-primary btn-sm">Generate</button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            onclick="document.getElementById('direct-regen-form-rejected').style.display='none';">
+                        Cancel
+                    </button>
+                </div>
+                <span id="direct-regen-spinner-rejected" class="htmx-indicator text-sm text-muted">Generating image & caption...</span>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if post.published_at %}
+        <div class="detail-field mt-4">
+            <div class="detail-field-label">Published</div>
+            <div class="detail-field-value text-sm">{{ post.published_at }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Regeneration suggestions area -->
+<div id="regen-area" class="mt-6">
+    <span id="regen-spinner" class="htmx-indicator text-sm text-muted">Generating suggestions...</span>
+</div>
+
+{% if perf %}
+<div class="section-label mt-6">Post Performance</div>
+<div class="card-grid card-grid-3">
+    <div class="kpi-card">
+        <div class="kpi-label">Impressions</div>
+        <div class="kpi-value">{{ perf.impressions or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Reach</div>
+        <div class="kpi-value">{{ perf.reach or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Engagement</div>
+        <div class="kpi-value">{{ perf.engagement or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Likes</div>
+        <div class="kpi-value">{{ perf.likes or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Comments</div>
+        <div class="kpi-value">{{ perf.comments or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Saves</div>
+        <div class="kpi-value">{{ perf.saves or 0 }}</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+.detail-image.lightbox {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    background: rgba(0,0,0,0.9);
+    z-index: 1000;
+    border-radius: 0;
+    cursor: zoom-out;
+}
+</style>
+{% endblock %}

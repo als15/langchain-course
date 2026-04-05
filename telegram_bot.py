@@ -180,22 +180,34 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
             return
 
-        await query.edit_message_caption(caption=f"Upscaling...")
-        log.info(f"Post {post_id} — upscaling...")
-
-        from tools.image_gen import upscale_and_host
-        final_url = upscale_and_host(row["image_url"])
-
+        # Approve first so the post isn't stuck in pending_approval if upscale fails
         db.execute(
             "UPDATE content_queue SET status = 'approved', approved_by = 'telegram', "
-            "approved_at = CURRENT_TIMESTAMP, image_url = ? WHERE id = ?",
-            (final_url, post_id),
+            "approved_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (post_id,),
         )
         db.commit()
-        await query.edit_message_caption(
-            caption=f"APPROVED: {row['topic']}\n\nUpscaled and ready to publish."
-        )
-        log.info(f"Post {post_id} — upscaled and approved.")
+        log.info(f"Post {post_id} — approved, starting upscale...")
+
+        await query.edit_message_caption(caption=f"Approved! Upscaling image...")
+
+        try:
+            from tools.image_gen import upscale_and_host
+            final_url = upscale_and_host(row["image_url"])
+            db.execute(
+                "UPDATE content_queue SET image_url = ? WHERE id = ?",
+                (final_url, post_id),
+            )
+            db.commit()
+            await query.edit_message_caption(
+                caption=f"APPROVED: {row['topic']}\n\nUpscaled and ready to publish."
+            )
+            log.info(f"Post {post_id} — upscaled successfully.")
+        except Exception as e:
+            log.error(f"Post {post_id} — upscale failed: {e}, will publish with original image.")
+            await query.edit_message_caption(
+                caption=f"APPROVED: {row['topic']}\n\n⚠ Upscale failed, will publish with original image."
+            )
         return
 
     if data.startswith("editcap_"):
@@ -249,19 +261,56 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"Post {post_id} — regenerated: {new_url}")
         return
 
+    if data.startswith("directregen_"):
+        post_id = int(data.split("_", 1)[1])
+        row = db.execute("SELECT topic, status FROM content_queue WHERE id = ?", (post_id,)).fetchone()
+        if not row:
+            await query.edit_message_caption(caption=f"Post {post_id} not found.")
+            return
+        if row["status"] != "pending_approval":
+            await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
+            return
+
+        context.user_data["directing_regen_for"] = post_id
+        await query.edit_message_caption(
+            caption=(
+                f"Directing regen for: {row['topic']}\n\n"
+                "Send your direction as a message, e.g.:\n"
+                "  tiramisu close up\n"
+                "  babka with chocolate drizzle, overhead shot\n"
+                "  challah braiding process, warm light\n\n"
+                "I'll generate the image AND write a matching caption."
+            )
+        )
+        log.info(f"Post {post_id} — directed regen mode activated.")
+        return
+
 
 # ── Caption Edit Handler ─────────────────────────────────────────────
 
 
-async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive a new caption from the user after they pressed Edit Caption."""
+async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle text messages for caption edits and directed regens."""
     if not _authorized(update):
         return
 
+    # Check if user is in caption edit mode
     post_id = context.user_data.pop("editing_caption_for", None)
-    if post_id is None:
-        return  # Not in edit mode, ignore
+    if post_id is not None:
+        await _handle_caption_edit(update, context, post_id)
+        return
 
+    # Check if user is in directed regen mode
+    post_id = context.user_data.pop("directing_regen_for", None)
+    if post_id is not None:
+        await _handle_directed_regen(update, context, post_id)
+        return
+
+    # Not in any mode, ignore
+
+
+async def _handle_caption_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Process a caption edit message."""
     new_caption = update.message.text.strip()
     db = get_db()
     row = db.execute(
@@ -277,11 +326,11 @@ async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     db.commit()
 
     review_text = (
-        f"📋 POST #{post_id} — CAPTION UPDATED\n\n"
+        f"POST #{post_id} — CAPTION UPDATED\n\n"
         f"Topic: {row['topic']}\n\n"
-        f"━━━ New Caption ━━━\n"
+        f"--- New Caption ---\n"
         f"{new_caption}\n"
-        f"━━━━━━━━━━━━━━━━━━"
+        f"-------------------"
     )
 
     await context.bot.send_photo(
@@ -291,6 +340,83 @@ async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         reply_markup=_build_review_keyboard(post_id),
     )
     log.info(f"Post {post_id} — caption updated via Telegram.")
+
+
+async def _handle_directed_regen(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Process a directed regeneration: generate image from user's direction + LLM caption."""
+    user_direction = update.message.text.strip()
+    db = get_db()
+    row = db.execute(
+        "SELECT topic, status, content_pillar, content_type FROM content_queue WHERE id = ?",
+        (post_id,),
+    ).fetchone()
+
+    if not row or row["status"] != "pending_approval":
+        await update.message.reply_text(f"Post {post_id} is no longer pending approval.")
+        return
+
+    await update.message.reply_text(f"Generating image for: {user_direction}\nThis may take a moment...")
+    log.info(f"Post {post_id} — directed regen: '{user_direction}'")
+
+    # Generate image from user direction
+    from tools.content_guide import build_image_prompt
+    from tools.image_gen import generate_one
+
+    prompt = build_image_prompt.invoke(user_direction)
+    new_url = generate_one(prompt)
+
+    # Generate matching caption via LLM
+    new_caption = _generate_caption(user_direction, row["content_pillar"])
+
+    # Update DB: image, caption, visual_direction, and topic
+    db.execute(
+        "UPDATE content_queue SET image_url = ?, caption = ?, visual_direction = ?, topic = ? WHERE id = ?",
+        (new_url, new_caption, user_direction, user_direction, post_id),
+    )
+    db.commit()
+
+    review_text = (
+        f"POST #{post_id} — DIRECTED REGEN\n\n"
+        f"Direction: {user_direction}\n\n"
+        f"--- Generated Caption ---\n"
+        f"{new_caption}\n"
+        f"-------------------------"
+    )
+
+    await context.bot.send_photo(
+        chat_id=update.message.chat_id,
+        photo=new_url,
+        caption=review_text[:1024],
+        reply_markup=_build_review_keyboard(post_id),
+    )
+    log.info(f"Post {post_id} — directed regen complete: {new_url}")
+
+
+# ── Caption Generation ──────────────────────────────────────────────
+
+
+def _generate_caption(direction: str, content_pillar: str) -> str:
+    """Generate a Hebrew caption for a given visual direction using the LLM."""
+    from config import get_llm
+
+    llm = get_llm(temperature=0.7)
+    prompt = (
+        "You write Instagram captions for Capa & Co (קאפה אנד קו), an Israeli bakery.\n\n"
+        "Rules:\n"
+        "- Write in native Israeli Hebrew. Not translated. Not corporate.\n"
+        "- Short and playful — one line is best, max 2 short sentences.\n"
+        "- The caption MUST be specifically about the dish/image described below.\n"
+        "- Add 3-5 hashtags at the end (mix Hebrew and English).\n"
+        "- Emojis: max one, only if natural.\n\n"
+        "Examples of good captions:\n"
+        '- "אפשר להריח את החמאה דרך הטלפון :) #קאפהאנדקו #croissant #בייקרי"\n'
+        '- "כריך שהוא מעט יווני והמון ישראלי #קאפהאנדקו #halloumi #כריכים"\n\n'
+        f"Content pillar: {content_pillar}\n"
+        f"Visual direction: {direction}\n\n"
+        "Write ONLY the caption. Nothing else."
+    )
+    response = llm.invoke(prompt)
+    return response.content.strip()
 
 
 # ── Notification Senders (called by daemon) ──────────────────────────
@@ -304,7 +430,10 @@ def _build_review_keyboard(post_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("Regenerate", callback_data=f"regen_{post_id}"),
         ],
         [
+            InlineKeyboardButton("Regen + Direction", callback_data=f"directregen_{post_id}"),
             InlineKeyboardButton("Edit Caption", callback_data=f"editcap_{post_id}"),
+        ],
+        [
             InlineKeyboardButton("Reject", callback_data=f"reject_{post_id}"),
         ],
     ])
@@ -364,6 +493,6 @@ def build_telegram_app() -> Application:
     app.add_handler(CommandHandler("leads", leads_command))
     app.add_handler(CommandHandler("engage", engage_command))
     app.add_handler(CallbackQueryHandler(approval_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, caption_edit_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
     return app

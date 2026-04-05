@@ -147,7 +147,11 @@ async def main():
     scheduler = AsyncIOScheduler(timezone="Asia/Jerusalem")
 
     # ── Sunday Morning Planning Session ──
+    # 06:30 — Culinary supervisor reviews feed and provides weekly brief
+    scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=6, minute=30,
+                      args=["culinary_review", bot], id="culinary_review")
     # 07:00 — Content strategist creates full week (5 posts + 7 stories)
+    #          (consults culinary supervisor's brief automatically)
     scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=7,
                       args=["content_planning", bot], id="content_planning")
     # 08:00 — Design review on all drafts
@@ -157,10 +161,10 @@ async def main():
     scheduler.add_job(safe_run, "cron", day_of_week="sun", hour=9,
                       args=["image_generation", bot], id="image_generation")
 
-    # ── Daily Autopilot Publishing (checks every hour, publishes if scheduled time has passed) ──
-    scheduler.add_job(safe_run, "cron", minute=0,
+    # ── Daily Publishing at 08:00 ──
+    scheduler.add_job(safe_run, "cron", hour=8,
                       args=["publish", bot], id="publish")
-    scheduler.add_job(safe_run, "cron", minute=0,
+    scheduler.add_job(safe_run, "cron", hour=8,
                       args=["publish_stories", bot], id="publish_stories")
 
     # ── Daily Performance Review ──
@@ -189,9 +193,19 @@ async def main():
     for job in scheduler.get_jobs():
         log.info(f"  {job.id}: {job.trigger}")
 
+    # ── Start web dashboard ──
+    import uvicorn
+    from web import create_app
+
+    web_app = create_app(scheduler=scheduler, bot=bot, safe_run_fn=safe_run)
+    port = int(os.environ.get("PORT", 8000))
+    uvi_config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="info")
+    uvi_server = uvicorn.Server(uvi_config)
+
+    log.info(f"Starting web dashboard on port {port}...")
     log.info("Starting Telegram bot polling...")
 
-    # Start Telegram polling alongside the scheduler
+    # Start Telegram polling alongside the scheduler and web server
     async with telegram_app:
         await telegram_app.start()
         await telegram_app.updater.start_polling()
@@ -199,6 +213,9 @@ async def main():
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
         if chat_id:
             await bot.send_message(chat_id=chat_id, text="Capa & Co bot is online!")
+
+        # Run uvicorn as a background task
+        web_task = asyncio.create_task(uvi_server.serve())
 
         log.info("Daemon running. Press Ctrl+C to stop.")
 
@@ -209,6 +226,8 @@ async def main():
         except asyncio.CancelledError:
             pass
         finally:
+            uvi_server.should_exit = True
+            await web_task
             await telegram_app.updater.stop()
             await telegram_app.stop()
             scheduler.shutdown()
@@ -220,3 +239,7 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         log.info("Daemon stopped by user.")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        log.error(f"Daemon crashed: {e}")

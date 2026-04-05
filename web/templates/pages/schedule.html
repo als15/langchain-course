@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Schedule{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Schedule</h1>
+
+<!-- Scheduled Jobs -->
+<div class="section-label">Scheduled Jobs</div>
+<div class="card mb-6">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Schedule</th>
+                    <th>Next Run</th>
+                    <th>Last Success</th>
+                    <th>Last Failure</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for job in schedule %}
+                <tr>
+                    <td class="text-sm" style="font-weight:500">{{ job.label }}</td>
+                    <td class="text-sm text-muted">{{ job.cron }}</td>
+                    <td class="text-sm">{{ next_runs.get(job.task, '—') }}</td>
+                    <td class="text-sm">
+                        {% if job.last_success %}
+                        <span style="color:var(--brand-green)">{{ job.last_success[:16] }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-sm">
+                        {% if job.last_failure %}
+                        <span style="color:var(--status-failed)">{{ job.last_failure[:16] }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary btn-xs"
+                                hx-post="/schedule/{{ job.task }}/run"
+                                hx-swap="outerHTML"
+                                hx-confirm="Run {{ job.label }} now?">
+                            Run Now
+                        </button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Upcoming Content -->
+<div class="section-label">Upcoming Content</div>
+{% if upcoming %}
+<div class="card">
+    <div class="timeline">
+        {% for post in upcoming %}
+        <a href="/queue/{{ post.id }}" class="timeline-item" style="text-decoration:none;color:inherit">
+            {% if post.image_url %}
+            <img src="{{ post.image_url }}" alt="" class="timeline-thumb" loading="lazy">
+            {% else %}
+            <div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--gray-text)">No img</div>
+            {% endif %}
+            <div class="timeline-date">{{ post.scheduled_date or '' }}</div>
+            <div class="text-xs text-muted">{{ (post.scheduled_time or '')[:5] }}</div>
+            <span class="badge badge-{{ post.status }}" style="margin-top:4px">{{ post.status.replace('_',' ') }}</span>
+            <div class="text-xs rtl" style="margin-top:4px">{{ (post.topic or '')[:30] }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-text">No upcoming content scheduled</div>
+</div>
+{% endif %}
+{% endblock %}

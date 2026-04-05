@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}System{% endblock %}
+
+{% block content %}
+<h1 class="page-title">System</h1>
+
+<div class="card-grid card-grid-2 mb-6">
+    <!-- System Info -->
+    <div class="card">
+        <div class="section-label mb-4">System Info</div>
+        <div class="info-grid">
+            <span class="info-label">Database</span>
+            <span>{{ sys_info.db_type }}</span>
+            <span class="info-label">LLM Provider</span>
+            <span>{{ sys_info.llm_provider }}</span>
+            <span class="info-label">Timezone</span>
+            <span>{{ sys_info.timezone }}</span>
+        </div>
+    </div>
+
+    <!-- Meta Token -->
+    <div class="card">
+        <div class="section-label mb-4">Meta API Token</div>
+        {% if token_info %}
+        <div class="info-grid">
+            <span class="info-label">Last Refresh</span>
+            <span>{{ token_info.last_refresh }}</span>
+            <span class="info-label">Days Since</span>
+            <span>{{ token_info.days_since }} days</span>
+            <span class="info-label">Days Remaining</span>
+            <span style="{% if token_info.days_remaining < 10 %}color:var(--status-rejected);font-weight:600{% endif %}">
+                ~{{ token_info.days_remaining }} days
+            </span>
+        </div>
+        {% else %}
+        <div class="text-sm text-muted">No token file found</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Table Sizes -->
+<div class="section-label">Database Tables</div>
+<div class="card-grid card-grid-3 mb-6">
+    {% for name, key in [('Content Queue', 'content_count'), ('Leads', 'leads_count'), ('Engagement Tasks', 'engagement_count'), ('Run Log', 'run_count'), ('Analytics Snapshots', 'snapshot_count'), ('Post Performance', 'perf_count')] %}
+    <div class="kpi-card">
+        <div class="kpi-label">{{ name }}</div>
+        <div class="kpi-value">{{ counts.get(key, 0) }}</div>
+        <div class="text-xs text-muted">rows</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Scheduler Jobs -->
+{% if scheduler_jobs %}
+<div class="section-label">Scheduler Jobs</div>
+<div class="card mb-6">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>Trigger</th>
+                    <th>Next Run</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for job in scheduler_jobs %}
+                <tr>
+                    <td class="text-sm" style="font-weight:500">{{ job.id }}</td>
+                    <td class="text-sm text-muted">{{ job.trigger }}</td>
+                    <td class="text-sm">{{ job.next_run }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Daemon Log -->
+<div class="section-label">Daemon Log (last 50 lines)</div>
+<div class="log-viewer">{% for line in log_lines %}{{ line }}{% endfor %}{% if not log_lines %}(no log file found){% endif %}</div>
+{% endblock %}

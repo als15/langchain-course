@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Overview</h1>
+
+<!-- KPI Cards -->
+<div class="card-grid card-grid-4 mb-6">
+    <div class="kpi-card">
+        <div class="kpi-label">Followers</div>
+        <div class="kpi-value">{{ analytics.get('follower_count', 0) or 0 }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Published This Week</div>
+        <div class="kpi-value">{{ published_week }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Avg Engagement</div>
+        <div class="kpi-value">{{ "%.1f" | format(analytics.get('avg_engagement_rate', 0) or 0) }}%</div>
+    </div>
+    <div class="kpi-card">
+        <a href="/queue?status=pending_approval" style="text-decoration:none;color:inherit">
+            <div class="kpi-label">Pending Approval</div>
+            <div class="kpi-value" style="color: var(--status-pending)">{{ pipeline.get('pending_approval', 0) }}</div>
+        </a>
+    </div>
+</div>
+
+<!-- Content Pipeline -->
+<div class="section-label">Content Pipeline</div>
+<div class="card mb-6">
+    {% set total = pipeline.values() | sum or 1 %}
+    <div class="pipeline">
+        {% for status, color in [('draft', '#D4A843'), ('pending_approval', '#5B8DB8'), ('approved', '#8FA878'), ('published', '#4A5D3A')] %}
+        {% set count = pipeline.get(status, 0) %}
+        {% if count > 0 %}
+        <div class="pipeline-segment" style="background: {{ color }}; flex: {{ count }}">
+            {{ status.replace('_', ' ').title() }} ({{ count }})
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% if pipeline.get('rejected', 0) > 0 %}
+        <div class="pipeline-segment" style="background: #B85B5B; flex: {{ pipeline.get('rejected', 0) }}">
+            Rejected ({{ pipeline.get('rejected', 0) }})
+        </div>
+        {% endif %}
+    </div>
+    {% if total <= 1 and not pipeline %}
+    <div class="empty-state" style="padding: 16px">
+        <div class="empty-state-text">No content in pipeline yet</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card-grid card-grid-2 mb-6">
+    <!-- Recent Activity -->
+    <div>
+        <div class="section-label">Recent Activity</div>
+        <div class="card" id="recent-activity"
+             hx-get="/partials/recent-runs"
+             hx-trigger="every 60s"
+             hx-swap="innerHTML">
+            {% include "components/recent_runs.html" %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div>
+        <div class="section-label">Quick Actions</div>
+        <div class="card">
+            <div class="quick-actions" style="flex-direction: column; gap: 8px;">
+                <button class="btn btn-primary"
+                        hx-post="/schedule/content_planning/run"
+                        hx-swap="outerHTML"
+                        hx-confirm="Run content planning now?">
+                    Run Content Planning
+                </button>
+                <button class="btn btn-primary"
+                        hx-post="/schedule/image_generation/run"
+                        hx-swap="outerHTML"
+                        hx-confirm="Run image generation now?">
+                    Run Image Generation
+                </button>
+                <button class="btn btn-primary"
+                        hx-post="/schedule/analytics/run"
+                        hx-swap="outerHTML"
+                        hx-confirm="Run analytics now?">
+                    Run Analytics
+                </button>
+                <button class="btn btn-secondary"
+                        hx-post="/schedule/publish/run"
+                        hx-swap="outerHTML"
+                        hx-confirm="Run publish now?">
+                    Publish Ready Posts
+                </button>
+            </div>
+            {% if fail_stats.failures and fail_stats.failures > 0 %}
+            <div class="mt-4 text-sm" style="color: var(--status-rejected)">
+                {{ fail_stats.failures }} failed run{{ 's' if fail_stats.failures != 1 }} in the last 7 days
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if analytics.get('recommendations') %}
+<div class="section-label">AI Recommendations</div>
+<div class="reco-card mb-6">
+    <div class="pre-wrap text-sm">{{ analytics.get('recommendations', '') }}</div>
+</div>
+{% endif %}
+{% endblock %}

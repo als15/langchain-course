@@ -10,4 +10,6 @@ RUN uv sync --frozen --no-dev
 COPY . .
 RUN mkdir -p data
 
+EXPOSE 8000
+
 CMD ["uv", "run", "python", "daemon.py"]

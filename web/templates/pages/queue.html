@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Content Queue{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Content Queue</h1>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+    <a href="/queue" class="filter-pill {% if not status_filter %}active{% endif %}">
+        All <span class="count">({{ counts.values() | sum }})</span>
+    </a>
+    {% for status in ['draft', 'pending_approval', 'approved', 'published', 'rejected'] %}
+    {% if counts.get(status, 0) > 0 or status == status_filter %}
+    <a href="/queue?status={{ status }}{% if type_filter %}&type={{ type_filter }}{% endif %}"
+       class="filter-pill {% if status_filter == status %}active{% endif %}">
+        {{ status.replace('_', ' ').title() }}
+        <span class="count">({{ counts.get(status, 0) }})</span>
+    </a>
+    {% endif %}
+    {% endfor %}
+
+    <span style="margin-left: 16px;"></span>
+
+    <a href="/queue?{% if status_filter %}status={{ status_filter }}{% endif %}"
+       class="filter-pill {% if not type_filter %}active{% endif %}">All Types</a>
+    <a href="/queue?type=photo{% if status_filter %}&status={{ status_filter }}{% endif %}"
+       class="filter-pill {% if type_filter == 'photo' %}active{% endif %}">Photo</a>
+    <a href="/queue?type=story{% if status_filter %}&status={{ status_filter }}{% endif %}"
+       class="filter-pill {% if type_filter == 'story' %}active{% endif %}">Story</a>
+</div>
+
+<!-- Post grid -->
+{% if posts %}
+<div class="post-grid">
+    {% for post in posts %}
+    <a href="/queue/{{ post.id }}" class="post-card">
+        {% if post.image_url %}
+        <img src="{{ post.image_url }}" alt="" class="post-card-img" loading="lazy">
+        {% else %}
+        <div class="post-card-img-placeholder">No image yet</div>
+        {% endif %}
+        <div class="post-card-body">
+            <div class="post-card-meta">
+                <span>{{ post.scheduled_date or '' }} {{ (post.scheduled_time or '')[:5] }}</span>
+                <span class="badge badge-{{ post.status }}">{{ post.status.replace('_', ' ') }}</span>
+            </div>
+            <div class="post-card-topic">{{ post.topic or '' }}</div>
+            <div class="post-card-pillar">{{ post.content_type or '' }} &middot; {{ (post.content_pillar or '').replace('_', ' ') }}</div>
+
+            {% if post.status == 'pending_approval' %}
+            <div class="mt-4 flex gap-4" id="actions-{{ post.id }}">
+                <button class="btn btn-primary btn-xs"
+                        hx-post="/queue/{{ post.id }}/approve"
+                        hx-target="#actions-{{ post.id }}"
+                        hx-swap="innerHTML"
+                        hx-confirm="Approve this post?"
+                        onclick="event.preventDefault(); event.stopPropagation();">
+                    Approve
+                </button>
+                <button class="btn btn-danger btn-xs"
+                        hx-post="/queue/{{ post.id }}/reject"
+                        hx-target="#actions-{{ post.id }}"
+                        hx-swap="innerHTML"
+                        hx-confirm="Reject this post?"
+                        onclick="event.preventDefault(); event.stopPropagation();">
+                    Reject
+                </button>
+            </div>
+            {% elif post.status == 'rejected' %}
+            <div class="mt-4" id="actions-{{ post.id }}">
+                <button class="btn btn-secondary btn-xs"
+                        hx-post="/queue/{{ post.id }}/requeue"
+                        hx-target="#actions-{{ post.id }}"
+                        hx-swap="innerHTML"
+                        hx-confirm="Requeue this post?"
+                        onclick="event.preventDefault(); event.stopPropagation();">
+                    Requeue
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">&#9744;</div>
+    <div class="empty-state-text">No posts matching filters</div>
+</div>
+{% endif %}
+{% endblock %}
