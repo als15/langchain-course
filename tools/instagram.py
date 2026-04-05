@@ -166,6 +166,26 @@ def exchange_for_long_lived_token() -> str:
         "fb_exchange_token": os.environ["META_ACCESS_TOKEN"],
     }
     resp = requests.get(url, params=params)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        return f"Token exchange failed ({resp.status_code}): {resp.text}"
     data = resp.json()
-    return f"Long-lived token (update your .env): {data['access_token'][:20]}... expires in {data.get('expires_in', 'unknown')} seconds"
+    new_token = data["access_token"]
+    # Auto-update the in-memory token and persist to .env
+    os.environ["META_ACCESS_TOKEN"] = new_token
+    _update_env_token(new_token)
+    return f"Long-lived token saved to .env. Expires in {data.get('expires_in', 'unknown')} seconds"
+
+
+def _update_env_token(new_token: str):
+    """Update META_ACCESS_TOKEN in .env file."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        lines = f.readlines()
+    with open(env_path, "w") as f:
+        for line in lines:
+            if line.startswith("META_ACCESS_TOKEN="):
+                f.write(f"META_ACCESS_TOKEN={new_token}\n")
+            else:
+                f.write(line)

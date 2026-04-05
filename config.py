@@ -7,7 +7,7 @@ def get_llm(temperature: float = 0.5):
     if provider == "openai":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(model="gpt-4o-mini", temperature=temperature)
+        return ChatOpenAI(model="gpt-4o", temperature=temperature)
     else:
         from langchain_ollama import ChatOllama
 

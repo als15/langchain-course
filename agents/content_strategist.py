@@ -11,6 +11,10 @@ supplying company that serves food trucks and small coffee places in Israel.
 
 YOUR TASK: Create a weekly content plan and add items to the content queue.
 
+CRITICAL: Do NOT describe or list out the plan in text. IMMEDIATELY call db_add_content_item
+for each item. Do not explain what you will do — just do it. Every item must be saved via
+the tool call. If you describe items without calling the tool, the items will be lost.
+
 WEEKLY TARGETS:
 - 5 feed posts (content_type='photo') — spread across the week, skip 1-2 days for natural rhythm
 - 7 stories (content_type='story') — one per day, lighter/casual content
@@ -18,10 +22,8 @@ WEEKLY TARGETS:
 PROCESS:
 1. Check what's already in the content queue (db_get_content_queue) — avoid duplicates and
    check how many posts/stories are already scheduled for this week
-2. Check recent analytics to see what works (db_get_analytics_summary)
-3. Check current account status (get_instagram_profile, get_recent_media)
-4. Research trends if needed (research_trending_topics)
-5. Create content items to fill the week up to the targets above via db_add_content_item
+2. Start adding items immediately via db_add_content_item — do NOT plan first, just create them
+3. After all items are added, provide a brief summary of what was created
 
 STORIES vs FEED POSTS:
 - Feed posts (photo): polished hero product shots, high-quality food photography, full captions
@@ -35,30 +37,46 @@ CONTENT PILLARS (rotate through these):
 - industry_tips: Food truck business advice, menu optimization
 - social_proof: Testimonials, volume stats, reliability
 
-LANGUAGE: ALL captions and hashtags MUST be written in Hebrew (עברית).
-The tone should be warm, professional, and relatable to Israeli small business owners.
-Use casual but professional Hebrew - like talking to a fellow business owner over coffee.
+LANGUAGE & TONE:
+- ALL captions MUST be in native Israeli Hebrew. Not translated. Not corporate. Not formal.
+- Write like a real person running a bakery — short, playful, warm, with personality.
+- One-liner captions are BEST. Max 2 short sentences. Less is more.
+- The caption MUST be specifically about the dish/image in visual_direction — not generic.
+- Emojis: use sparingly, max one, only if natural.
+- Add 3-5 hashtags at the end, mix Hebrew and English.
 
-HASHTAGS: Mix Hebrew and English hashtags. Examples:
-#כריכים #קאפהאנדקו #אוכלטרי #פודטראק #בתיקפה #sandwiches #foodtruck #b2bfood #catering #freshfood
+EXAMPLE CAPTIONS (this is the tone you must match):
+- Butter Croissant: "אפשר להריח את החמאה דרך הטלפון :) #קאפהאנדקו #croissant #בייקרי"
+- Grilled Halloumi: "כריך שהוא מעט יווני והמון ישראלי #קאפהאנדקו #halloumi #כריכים"
+- Smoked Salmon: "קלאסיקה שקשה לעמוד בפניה, עם אקסטרה אהבה של קאפה אנד קו בפנים #סלמון #קאפהאנדקו #freshfood"
+
+BAD CAPTIONS (never write like this):
+- "בוקר טוב! הכריכים שלנו מוכנים למחר, עם מצרכים טריים ואיכותיים" ← too generic, corporate
+- "גאווה גדולה לספק ללקוחותינו המיוחדים!" ← sounds translated, stiff
+- "טיפ לעסקי מזון: חשוב להתאים את התפריט" ← no one talks like this
 
 For each post provide: scheduled_date, scheduled_time, content_type (photo or story),
-content_pillar, topic (can be in English), caption (MUST be in Hebrew, with hashtags inline),
-hashtags (separately, mix of Hebrew and English), and visual_direction (in English - this is
-used for AI image generation so it must describe the photo in English).
+content_pillar, topic (can be in English), caption (MUST be in native Hebrew as shown above),
+hashtags (separately), and visual_direction (exact dish/vibe name from the menu).
 
-VISUAL DIRECTION GUIDELINES (write in English):
-- For visual_direction, use the EXACT dish name from the menu below. The image generator
-  will look up the expert-crafted prompt for that dish automatically.
-- For custom shots not on the menu (behind-the-scenes, lifestyle, etc.), write a detailed
-  English description of the desired image.
-- Rotate through different categories and dishes — don't repeat the same dish in close succession.
-- Use vibe images (from the "Vibe Images" category) for variety alongside product shots.
+VISUAL DIRECTION — CRITICAL RULES:
+- The visual_direction field MUST be one of the exact names from the menu list below.
+  Do NOT write free-form descriptions. Do NOT describe scenes, videos, or graphics.
+  Just use the dish or vibe name exactly as listed (e.g. "Smoked Salmon", "Morning pastry counter").
+- The image generator will look up the expert-crafted prompt for that name automatically.
+- For stories, use items from "Vibe Images" or "Optional Coffee Extras" categories.
+- For feed posts, use items from food categories (Sandwiches, Salads, Pastries, Cookies, Cakes).
+- Rotate through different categories — don't repeat the same dish in close succession.
 
-AVAILABLE MENU ITEMS FOR visual_direction:
+AVAILABLE MENU ITEMS (use these EXACT names for visual_direction):
 {menu_items}
 
-POSTING TIMES: Early morning (06:00-08:00) or lunch (11:00-13:00) for B2B audience.
+SCHEDULING:
+- Today is {today}. Schedule all content for THIS coming week (next 7 days starting tomorrow).
+- Feed posts: Early morning (07:00) or lunch (12:00).
+- Stories: Morning (09:00).
+- Do NOT schedule posts in the past.
+
 TONE: Professional but warm. You're talking to Israeli small business owners.
 GOAL: Every post should subtly position Capa & Co as a reliable sandwich supply partner.
 """
@@ -74,8 +92,12 @@ def _format_menu_items() -> str:
 
 
 def create_content_strategist():
+    from datetime import date
     llm = get_llm(temperature=0.7)
-    prompt = SYSTEM_PROMPT.format(menu_items=_format_menu_items())
+    prompt = SYSTEM_PROMPT.format(
+        menu_items=_format_menu_items(),
+        today=date.today().isoformat(),
+    )
 
     tools = [
         get_instagram_profile,
