@@ -145,10 +145,10 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Callback formats:
-    #   pick_{post_id}_{model}   — upscale picked image, approve
-    #   regen_{post_id}_{model}  — regenerate a new image for that model
-    #   reject_{post_id}         — reject post
-    #   approve_{post_id}        — legacy single-image approve
+    #   approve_{post_id}  — upscale image, approve
+    #   regen_{post_id}    — regenerate image
+    #   editcap_{post_id}  — edit caption
+    #   reject_{post_id}   — reject post
     data = query.data
     db = get_db()
 
@@ -167,14 +167,10 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"Post {post_id} rejected via Telegram.")
         return
 
-    if data.startswith("pick_"):
-        _, post_id_str, model_short = data.split("_", 2)
-        post_id = int(post_id_str)
-        model_full = "flux-2-pro" if model_short == "flux" else "nano-banana-2"
-
+    if data.startswith("approve_"):
+        post_id = int(data.split("_", 1)[1])
         row = db.execute(
-            "SELECT topic, status, image_url, image_url_alt, visual_direction "
-            "FROM content_queue WHERE id = ?",
+            "SELECT topic, status, image_url FROM content_queue WHERE id = ?",
             (post_id,),
         ).fetchone()
         if not row:
@@ -184,25 +180,22 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
             return
 
-        # Pick the URL for the chosen model
-        picked_url = row["image_url"] if model_short == "flux" else row["image_url_alt"]
-
-        await query.edit_message_caption(caption=f"Upscaling {model_full}...")
-        log.info(f"Post {post_id} — upscaling {model_full}...")
+        await query.edit_message_caption(caption=f"Upscaling...")
+        log.info(f"Post {post_id} — upscaling...")
 
         from tools.image_gen import upscale_and_host
-        final_url = upscale_and_host(picked_url)
+        final_url = upscale_and_host(row["image_url"])
 
         db.execute(
             "UPDATE content_queue SET status = 'approved', approved_by = 'telegram', "
-            "approved_at = CURRENT_TIMESTAMP, image_url = ?, image_url_alt = NULL WHERE id = ?",
+            "approved_at = CURRENT_TIMESTAMP, image_url = ? WHERE id = ?",
             (final_url, post_id),
         )
         db.commit()
         await query.edit_message_caption(
-            caption=f"APPROVED ({model_full}): {row['topic']}\n\nUpscaled and ready to publish."
+            caption=f"APPROVED: {row['topic']}\n\nUpscaled and ready to publish."
         )
-        log.info(f"Post {post_id} — picked {model_full}, upscaled, approved.")
+        log.info(f"Post {post_id} — upscaled and approved.")
         return
 
     if data.startswith("editcap_"):
@@ -215,7 +208,6 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
             return
 
-        # Store post_id in user_data so the next text message updates the caption
         context.user_data["editing_caption_for"] = post_id
         await query.edit_message_caption(
             caption=f"Editing caption for: {row['topic']}\n\nSend your new caption as a message."
@@ -224,10 +216,7 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data.startswith("regen_"):
-        _, post_id_str, model_short = data.split("_", 2)
-        post_id = int(post_id_str)
-        model_full = "flux-2-pro" if model_short == "flux" else "nano-banana-2"
-
+        post_id = int(data.split("_", 1)[1])
         row = db.execute(
             "SELECT topic, status, visual_direction FROM content_queue WHERE id = ?",
             (post_id,),
@@ -239,57 +228,26 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
             return
 
-        await query.edit_message_caption(caption=f"Regenerating {model_full}...")
-        log.info(f"Post {post_id} — regenerating {model_full}...")
+        await query.edit_message_caption(caption=f"Regenerating...")
+        log.info(f"Post {post_id} — regenerating...")
 
         from tools.content_guide import build_image_prompt
         from tools.image_gen import generate_one
 
         prompt = build_image_prompt.invoke(row["visual_direction"])
-        new_url = generate_one(prompt, model_full)
+        new_url = generate_one(prompt)
 
-        # Update the appropriate URL column
-        col = "image_url" if model_short == "flux" else "image_url_alt"
-        db.execute(f"UPDATE content_queue SET {col} = ? WHERE id = ?", (new_url, post_id))
+        db.execute("UPDATE content_queue SET image_url = ? WHERE id = ?", (new_url, post_id))
         db.commit()
 
-        # Send new image with full buttons again
-        bot = context.bot
-        other_col = "image_url_alt" if model_short == "flux" else "image_url"
-        other_row = db.execute(
-            f"SELECT {other_col}, topic, caption FROM content_queue WHERE id = ?",
-            (post_id,),
-        ).fetchone()
-
-        await bot.send_photo(
+        await context.bot.send_photo(
             chat_id=query.message.chat_id,
             photo=new_url,
-            caption=f"NEW {model_full} for: {row['topic']}",
-            reply_markup=_build_comparison_keyboard(post_id),
+            caption=f"NEW image for: {row['topic']}",
+            reply_markup=_build_review_keyboard(post_id),
         )
-        log.info(f"Post {post_id} — regenerated {model_full}: {new_url}")
+        log.info(f"Post {post_id} — regenerated: {new_url}")
         return
-
-    # Legacy: approve_{post_id}
-    action, post_id_str = data.split("_", 1)
-    post_id = int(post_id_str)
-    row = db.execute("SELECT topic, status FROM content_queue WHERE id = ?", (post_id,)).fetchone()
-    if not row:
-        await query.edit_message_caption(caption=f"Post {post_id} not found.")
-        return
-    if row["status"] != "pending_approval":
-        await query.edit_message_caption(caption=f"Post {post_id} is already '{row['status']}'.")
-        return
-    db.execute(
-        "UPDATE content_queue SET status = 'approved', approved_by = 'telegram', "
-        "approved_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (post_id,),
-    )
-    db.commit()
-    await query.edit_message_caption(
-        caption=f"APPROVED: {row['topic']}\n\nWill be published on next publish run."
-    )
-    log.info(f"Post {post_id} approved via Telegram.")
 
 
 # ── Caption Edit Handler ─────────────────────────────────────────────
@@ -307,7 +265,7 @@ async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     new_caption = update.message.text.strip()
     db = get_db()
     row = db.execute(
-        "SELECT topic, status, image_url, image_url_alt FROM content_queue WHERE id = ?",
+        "SELECT topic, status, image_url FROM content_queue WHERE id = ?",
         (post_id,),
     ).fetchone()
 
@@ -318,7 +276,6 @@ async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     db.execute("UPDATE content_queue SET caption = ? WHERE id = ?", (new_caption, post_id))
     db.commit()
 
-    # Re-send the review with updated caption and images
     review_text = (
         f"📋 POST #{post_id} — CAPTION UPDATED\n\n"
         f"Topic: {row['topic']}\n\n"
@@ -326,57 +283,37 @@ async def caption_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         f"{new_caption}\n"
         f"━━━━━━━━━━━━━━━━━━"
     )
-    await update.message.reply_text(review_text[:4096])
 
-    if row["image_url_alt"]:
-        keyboard = _build_comparison_keyboard(post_id)
-        await context.bot.send_photo(
-            chat_id=update.message.chat_id, photo=row["image_url"], caption="A — flux-2-pro",
-        )
-        await context.bot.send_photo(
-            chat_id=update.message.chat_id, photo=row["image_url_alt"],
-            caption="B — nano-banana-2", reply_markup=keyboard,
-        )
-    else:
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Approve", callback_data=f"approve_{post_id}"),
-                InlineKeyboardButton("Reject", callback_data=f"reject_{post_id}"),
-            ]
-        ])
-        await context.bot.send_photo(
-            chat_id=update.message.chat_id, photo=row["image_url"],
-            caption="Image", reply_markup=keyboard,
-        )
+    await context.bot.send_photo(
+        chat_id=update.message.chat_id,
+        photo=row["image_url"],
+        caption=review_text[:1024],
+        reply_markup=_build_review_keyboard(post_id),
+    )
     log.info(f"Post {post_id} — caption updated via Telegram.")
 
 
 # ── Notification Senders (called by daemon) ──────────────────────────
 
 
-def _build_comparison_keyboard(post_id: int) -> InlineKeyboardMarkup:
-    """Build the standard pick/regen/reject/edit keyboard for A/B comparison."""
+def _build_review_keyboard(post_id: int) -> InlineKeyboardMarkup:
+    """Build the approve/regen/edit/reject keyboard."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("Pick A (flux-2-pro)", callback_data=f"pick_{post_id}_flux"),
-            InlineKeyboardButton("Pick B (nano-banana-2)", callback_data=f"pick_{post_id}_banana"),
-        ],
-        [
-            InlineKeyboardButton("Regen A", callback_data=f"regen_{post_id}_flux"),
-            InlineKeyboardButton("Regen B", callback_data=f"regen_{post_id}_banana"),
+            InlineKeyboardButton("Approve", callback_data=f"approve_{post_id}"),
+            InlineKeyboardButton("Regenerate", callback_data=f"regen_{post_id}"),
         ],
         [
             InlineKeyboardButton("Edit Caption", callback_data=f"editcap_{post_id}"),
-            InlineKeyboardButton("Reject Both", callback_data=f"reject_{post_id}"),
+            InlineKeyboardButton("Reject", callback_data=f"reject_{post_id}"),
         ],
     ])
 
 
 async def notify_pending_approval(
-    bot: Bot, post_id: int, topic: str, caption: str,
-    image_url: str, image_url_alt: str | None = None,
+    bot: Bot, post_id: int, topic: str, caption: str, image_url: str, **kwargs,
 ):
-    """Send preview images with full caption and action buttons to Telegram."""
+    """Send preview image with full caption and action buttons to Telegram."""
     review_text = (
         f"📋 POST #{post_id} FOR REVIEW\n\n"
         f"Topic: {topic}\n\n"
@@ -385,42 +322,20 @@ async def notify_pending_approval(
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     )
 
-    if image_url_alt:
-        keyboard = _build_comparison_keyboard(post_id)
-        try:
-            await bot.send_message(chat_id=_chat_id(), text=review_text[:4096])
-            await bot.send_photo(chat_id=_chat_id(), photo=image_url, caption="A — flux-2-pro")
-            await bot.send_photo(
-                chat_id=_chat_id(), photo=image_url_alt,
-                caption="B — nano-banana-2", reply_markup=keyboard,
-            )
-        except Exception as e:
-            await bot.send_message(
-                chat_id=_chat_id(),
-                text=f"{review_text}\n\nA: {image_url}\nB: {image_url_alt}",
-                reply_markup=keyboard,
-            )
-            log.warning(f"Failed to send images for post {post_id}: {e}")
-    else:
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Approve", callback_data=f"approve_{post_id}"),
-                InlineKeyboardButton("Reject", callback_data=f"reject_{post_id}"),
-            ]
-        ])
-        try:
-            await bot.send_photo(
-                chat_id=_chat_id(), photo=image_url,
-                caption=review_text[:1024],
-                reply_markup=keyboard,
-            )
-        except Exception as e:
-            await bot.send_message(
-                chat_id=_chat_id(),
-                text=f"{review_text}\n\nImage: {image_url}",
-                reply_markup=keyboard,
-            )
-            log.warning(f"Failed to send image for post {post_id}: {e}")
+    keyboard = _build_review_keyboard(post_id)
+    try:
+        await bot.send_photo(
+            chat_id=_chat_id(), photo=image_url,
+            caption=review_text[:1024],
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        await bot.send_message(
+            chat_id=_chat_id(),
+            text=f"{review_text}\n\nImage: {image_url}",
+            reply_markup=keyboard,
+        )
+        log.warning(f"Failed to send image for post {post_id}: {e}")
 
 
 async def notify_task_complete(bot: Bot, task_type: str, summary: str):

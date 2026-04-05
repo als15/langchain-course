@@ -9,34 +9,22 @@ from db.connection import get_db
 
 log = logging.getLogger(__name__)
 
-MODELS = {
-    "flux-2-pro": {
-        "endpoint": "fal-ai/flux-2-pro",
-        "args": {
-            "image_size": {"width": 2048, "height": 2048},
-            "safety_tolerance": 5,
-        },
-    },
-    "nano-banana-2": {
-        "endpoint": "fal-ai/nano-banana-2",
-        "args": {
-            "resolution": "2K",
-            "aspect_ratio": "1:1",
-        },
+MODEL = {
+    "endpoint": "fal-ai/flux-2-pro",
+    "args": {
+        "image_size": {"width": 2048, "height": 2048},
+        "safety_tolerance": 5,
     },
 }
 
-MODEL_LABELS = {"flux-2-pro": "flux", "nano-banana-2": "banana"}
 
-
-def _generate_image(prompt: str, model_key: str) -> str:
+def _generate_image(prompt: str) -> str:
     """Call fal.ai to generate one image. Returns the temporary image URL."""
     os.environ["FAL_KEY"] = os.environ.get("FAL_KEY", "")
 
-    model = MODELS[model_key]
     result = fal_client.subscribe(
-        model["endpoint"],
-        arguments={"prompt": prompt, "num_images": 1, **model["args"]},
+        MODEL["endpoint"],
+        arguments={"prompt": prompt, "num_images": 1, **MODEL["args"]},
     )
     return result["images"][0]["url"]
 
@@ -80,38 +68,30 @@ def upscale_and_host(image_url: str) -> str:
     return _rehost_image(upscaled_url)
 
 
-def generate_one(prompt: str, model_key: str) -> str:
+def generate_one(prompt: str) -> str:
     """Generate one image, rehost it (no upscale). Returns permanent URL."""
-    fal_url = _generate_image(prompt, model_key)
+    fal_url = _generate_image(prompt)
     return _rehost_image(fal_url)
 
 
 @tool
 def generate_and_host_image(prompt: str, post_id: int) -> str:
-    """Generate one preview image per model (2 total) for comparison via Telegram.
-    Upscaling happens only after the user picks their favorite.
+    """Generate a preview image for a content post using FLUX 2 Pro.
+    Upscaling happens after the user approves via Telegram.
     Args:
         prompt: Detailed description of the image to generate.
-        post_id: The content queue item ID to update with the generated images.
+        post_id: The content queue item ID to update with the generated image.
     """
     try:
-        previews = {}
-        for model_key in MODELS:
-            previews[model_key] = generate_one(prompt, model_key)
+        image_url = generate_one(prompt)
 
         db = get_db()
         db.execute(
-            "UPDATE content_queue SET image_url = ?, image_url_alt = ?, "
-            "status = 'pending_approval' WHERE id = ?",
-            (previews["flux-2-pro"], previews["nano-banana-2"], post_id),
+            "UPDATE content_queue SET image_url = ?, status = 'pending_approval' WHERE id = ?",
+            (image_url, post_id),
         )
         db.commit()
 
-        return (
-            f"Preview images generated for post {post_id}.\n"
-            f"  A (flux-2-pro): {previews['flux-2-pro']}\n"
-            f"  B (nano-banana-2): {previews['nano-banana-2']}\n"
-            f"User will pick via Telegram, then the winner gets upscaled."
-        )
+        return f"Image generated for post {post_id}: {image_url}"
     except Exception as e:
         return f"Failed to generate image for post {post_id}: {e}"
