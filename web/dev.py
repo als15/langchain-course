@@ -9,8 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Force SQLite for local dev if no DATABASE_URL is set
-os.environ.pop("DATABASE_URL", None)
+# Use production Postgres if DATABASE_URL is set in .env, otherwise fall back to SQLite
 
 from db.schema import init_db
 
