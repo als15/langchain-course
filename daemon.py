@@ -56,14 +56,72 @@ def _has_publishable_content(task_type: str) -> bool:
     return row["cnt"] > 0
 
 
+def _skip_reason(content_type: str) -> str:
+    """Diagnose why there's nothing to publish — returns a human-readable reason."""
+    from datetime import timezone, timedelta
+    now_il = datetime.now(timezone(timedelta(hours=3)))
+    today = now_il.strftime("%Y-%m-%d")
+    now_time = now_il.strftime("%H:%M")
+
+    db = get_db()
+    # Check approved posts regardless of time
+    approved = db.execute(
+        "SELECT COUNT(*) as cnt FROM content_queue "
+        "WHERE status = 'approved' AND content_type = ?",
+        (content_type,),
+    ).fetchone()["cnt"]
+    if approved == 0:
+        # Check what statuses exist for today
+        statuses = db.execute(
+            "SELECT status, COUNT(*) as cnt FROM content_queue "
+            "WHERE content_type = ? AND scheduled_date = ? GROUP BY status",
+            (content_type, today),
+        ).fetchall()
+        if not statuses:
+            return f"No {content_type} posts scheduled for today ({today})."
+        breakdown = ", ".join(f"{r['cnt']} {r['status']}" for r in statuses)
+        return f"No approved {content_type} posts. Today's posts: {breakdown}."
+
+    # There are approved posts but not for now — they're scheduled later
+    future = db.execute(
+        "SELECT scheduled_date, scheduled_time FROM content_queue "
+        "WHERE status = 'approved' AND content_type = ? AND image_url IS NOT NULL "
+        "AND scheduled_date = ? AND scheduled_time > ? "
+        "ORDER BY scheduled_time LIMIT 3",
+        (content_type, today, now_time),
+    ).fetchall()
+    if future:
+        times = ", ".join(r["scheduled_time"] for r in future)
+        return f"Approved {content_type} posts exist but scheduled later today: {times}. Now is {now_time}."
+
+    # Approved but missing image
+    no_img = db.execute(
+        "SELECT COUNT(*) as cnt FROM content_queue "
+        "WHERE status = 'approved' AND content_type = ? AND image_url IS NULL",
+        (content_type,),
+    ).fetchone()["cnt"]
+    if no_img:
+        return f"{no_img} approved {content_type} post(s) but missing image_url."
+
+    return f"No publishable {content_type} posts found (approved: {approved}, now: {today} {now_time})."
+
+
 async def safe_run(task_type: str, bot):
     """Run a task in a thread executor (LangGraph/Ollama are sync) and notify via Telegram."""
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     loop = asyncio.get_event_loop()
 
-    # Skip publish tasks if nothing to publish
+    # Skip publish tasks if nothing to publish (but still log it)
     if task_type in QUIET_TASKS and not _has_publishable_content(task_type):
         log.info(f"Skipping {task_type}: nothing to publish.")
+        db = get_db()
+        content_type = "photo" if task_type == "publish" else "story"
+        reason = _skip_reason(content_type)
+        db.execute(
+            "INSERT INTO run_log (task_type, status, duration_seconds, summary) VALUES (?, ?, ?, ?)",
+            (task_type, "skipped", 0, reason),
+        )
+        db.commit()
         return
 
     log.info(f"Starting scheduled task: {task_type}")

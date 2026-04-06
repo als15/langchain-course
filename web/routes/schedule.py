@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from web import templates
-from web.db import query
+from web.db import query, query_one
 
 router = APIRouter()
 log = logging.getLogger("capaco")
@@ -90,9 +90,51 @@ async def trigger_task(request: Request, task_type: str):
     if task_type not in valid_tasks:
         return HTMLResponse(f'<span class="badge badge-failed">Unknown task: {task_type}</span>')
 
+    # Record the trigger timestamp so we can poll for a result after it
+    from datetime import datetime, timezone
+    trigger_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     log.info(f"Dashboard triggered task: {task_type}")
     asyncio.create_task(safe_run(task_type, bot))
 
     return HTMLResponse(
-        f'<button class="btn btn-secondary btn-sm" disabled>Triggered: {task_type}</button>'
+        f'<div class="run-status" '
+        f'hx-get="/schedule/{task_type}/last-run?after={trigger_ts}" '
+        f'hx-trigger="every 2s" hx-swap="outerHTML">'
+        f'<span class="badge badge-running">Running {task_type}...</span>'
+        f'</div>'
+    )
+
+
+@router.get("/schedule/{task_type}/last-run", response_class=HTMLResponse)
+async def last_run_status(request: Request, task_type: str):
+    """Poll endpoint: returns the latest run_log entry after the given timestamp."""
+    after = request.query_params.get("after", "")
+
+    row = await query_one(
+        "SELECT status, summary, error, duration_seconds FROM run_log "
+        "WHERE task_type = ? AND started_at >= ? ORDER BY started_at DESC LIMIT 1",
+        (task_type, after),
+    )
+
+    if not row:
+        # Still running — keep polling
+        return HTMLResponse(
+            f'<div class="run-status" '
+            f'hx-get="/schedule/{task_type}/last-run?after={after}" '
+            f'hx-trigger="every 2s" hx-swap="outerHTML">'
+            f'<span class="badge badge-running">Running {task_type}...</span>'
+            f'</div>'
+        )
+
+    status = row["status"]
+    detail = row.get("summary") or row.get("error") or ""
+    duration = row.get("duration_seconds") or 0
+
+    return HTMLResponse(
+        f'<div class="run-status">'
+        f'<span class="badge badge-{status}">{status}</span>'
+        f'<span class="text-xs text-muted" style="margin-left:8px">{duration:.1f}s</span>'
+        f'<div class="text-xs text-muted" style="margin-top:4px">{detail[:200]}</div>'
+        f'</div>'
     )
