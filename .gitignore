@@ -202,5 +202,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Claude Code
+.claude/
+.agents/
+skills-lock.json
+
 # Capa & Co data
 data/
