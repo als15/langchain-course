@@ -56,12 +56,32 @@ def _upload_to_cloudinary(image_bytes: bytes) -> str:
     """Upload image bytes to Cloudinary and return the public URL."""
     import cloudinary.uploader
     _configure_cloudinary()
+
+    # Cloudinary free tier has a 10MB limit; compress large images
+    if len(image_bytes) > 9 * 1024 * 1024:
+        image_bytes = _compress_image(image_bytes)
+
     result = cloudinary.uploader.upload(
         image_bytes,
         folder="capaco",
         resource_type="image",
     )
     return result["secure_url"]
+
+
+def _compress_image(image_bytes: bytes, max_side: int = 2048, quality: int = 85) -> bytes:
+    """Compress an image to fit within size limits while preserving quality."""
+    from io import BytesIO
+    from PIL import Image
+
+    img = Image.open(BytesIO(image_bytes))
+    img.thumbnail((max_side, max_side), Image.LANCZOS)
+    buf = BytesIO()
+    img_format = "JPEG" if img.mode == "RGB" else "PNG"
+    if img.mode == "RGBA" and img_format == "JPEG":
+        img = img.convert("RGB")
+    img.save(buf, format=img_format, quality=quality, optimize=True)
+    return buf.getvalue()
 
 
 def _rehost_image(fal_url: str) -> str:
