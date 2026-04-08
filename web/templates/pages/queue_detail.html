@@ -20,9 +20,35 @@
     {% endif %}
 
     <div class="detail-info">
-        <div class="detail-field">
-            <div class="detail-field-label">Schedule</div>
-            <div class="detail-field-value">{{ post.scheduled_date or '—' }} {{ post.scheduled_time or '' }}</div>
+        <div class="detail-field" id="schedule-field">
+            <div class="detail-field-label">
+                Schedule
+                {% if post.status in ('pending_approval', 'draft', 'approved') %}
+                <button class="btn btn-secondary btn-xs" style="margin-left:8px; font-size:11px; padding:2px 8px;"
+                        onclick="document.getElementById('schedule-display').style.display='none'; document.getElementById('schedule-edit').style.display='block';">
+                    Edit
+                </button>
+                {% endif %}
+            </div>
+            <div class="detail-field-value" id="schedule-display">{{ post.scheduled_date or '—' }} {{ post.scheduled_time or '' }}</div>
+            <form id="schedule-edit" style="display:none"
+                  hx-post="/queue/{{ post.id }}/edit-schedule"
+                  hx-target="#schedule-field"
+                  hx-swap="outerHTML">
+                <div class="flex gap-4">
+                    <input type="date" name="scheduled_date" value="{{ post.scheduled_date or '' }}"
+                           style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text); font-family:inherit;">
+                    <input type="time" name="scheduled_time" value="{{ post.scheduled_time or '' }}"
+                           style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card-bg); color:var(--text); font-family:inherit;">
+                </div>
+                <div class="flex gap-4 mt-2">
+                    <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                    <button type="button" class="btn btn-secondary btn-xs"
+                            onclick="document.getElementById('schedule-display').style.display=''; document.getElementById('schedule-edit').style.display='none';">
+                        Cancel
+                    </button>
+                </div>
+            </form>
         </div>
 
         <div class="detail-field">

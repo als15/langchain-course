@@ -197,6 +197,26 @@ async def requeue_post(post_id: int):
     return HTMLResponse(f'<span class="badge badge-{new_status}">{new_status.replace("_", " ")}</span>')
 
 
+@router.post("/queue/{post_id}/edit-schedule", response_class=HTMLResponse)
+async def edit_schedule(post_id: int, scheduled_date: str = Form(""), scheduled_time: str = Form("")):
+    post = await query_one("SELECT status FROM content_queue WHERE id = ?", (post_id,))
+    if not post or post["status"] not in ("pending_approval", "draft", "approved"):
+        return HTMLResponse('<div class="detail-field"><div class="detail-field-label">Schedule</div>'
+                            '<div class="detail-field-value text-sm" style="color:var(--status-failed)">Cannot edit.</div></div>')
+
+    await execute(
+        "UPDATE content_queue SET scheduled_date = ?, scheduled_time = ? WHERE id = ?",
+        (scheduled_date, scheduled_time, post_id),
+    )
+    from html import escape
+    return HTMLResponse(
+        f'<div class="detail-field" id="schedule-field">'
+        f'<div class="detail-field-label">Schedule <span class="text-xs text-muted" style="margin-left:8px;">Saved</span></div>'
+        f'<div class="detail-field-value">{escape(scheduled_date)} {escape(scheduled_time)}</div>'
+        f'</div>'
+    )
+
+
 @router.post("/queue/{post_id}/edit-caption", response_class=HTMLResponse)
 async def edit_caption(post_id: int, caption: str = Form("")):
     post = await query_one("SELECT status FROM content_queue WHERE id = ?", (post_id,))

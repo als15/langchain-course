@@ -61,7 +61,14 @@
             <tbody>
             {% for lead in leads %}
                 <tr>
-                    <td class="text-sm" style="font-weight:500">{{ lead.business_name or '—' }}</td>
+                    <td class="text-sm" style="font-weight:500">
+                        {{ lead.business_name or '—' }}
+                        {% if lead.instagram_handle %}
+                        <a href="https://instagram.com/{{ lead.instagram_handle }}" target="_blank" rel="noopener"
+                           title="@{{ lead.instagram_handle }}"
+                           style="margin-left:6px;color:var(--brand-green);text-decoration:none;font-size:13px;">&#x2197;</a>
+                        {% endif %}
+                    </td>
                     <td class="text-sm">
                         {% if lead.instagram_handle %}
                         <a href="https://instagram.com/{{ lead.instagram_handle }}" target="_blank" rel="noopener"
