@@ -20,7 +20,7 @@ def db_get_content_queue(status: str = "", limit: int = 10, due_only: bool = Fal
         conditions.append("status = ?")
         params.append(status)
     if due_only:
-        conditions.append("scheduled_date <= date('now')")
+        conditions.append("scheduled_date <= CAST(date('now') AS TEXT)")
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
     params.append(limit)
     rows = db.execute(
