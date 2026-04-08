@@ -11,7 +11,11 @@ _GUIDE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "
 BRAND_SUFFIX = (
     "Photorealistic RAW photo, soft natural morning daylight from the left, "
     "warm ivory/cream/sand palette, matte ceramic props, clean negative space, "
-    "premium artisanal bakery styling"
+    "premium artisanal bakery styling, "
+    "with 1-3 small decorative objects in vivid pastel colors "
+    "(e.g. a coral-pink linen napkin, a turquoise ceramic cup, a bright lavender flower sprig) "
+    "placed behind or to the side of the main subject, never in front — "
+    "the food remains the hero and center of the frame"
 )
 
 
