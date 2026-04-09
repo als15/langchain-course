@@ -129,6 +129,15 @@
 
         {% if post.status == 'draft' %}
         <div class="flex gap-4 mt-4 flex-wrap" id="approval-actions">
+            {% if post.image_url %}
+            <button class="btn btn-primary"
+                    hx-post="/queue/{{ post.id }}/approve"
+                    hx-target="#approval-actions"
+                    hx-swap="innerHTML"
+                    hx-confirm="Approve this post?">
+                Approve
+            </button>
+            {% endif %}
             <button class="btn btn-secondary"
                     hx-post="/queue/{{ post.id }}/suggestions"
                     hx-target="#regen-area"

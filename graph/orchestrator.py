@@ -129,13 +129,10 @@ def engagement_advisor_node(state: OrchestratorState) -> dict:
 
 
 def content_publisher_node(state: OrchestratorState) -> dict:
-    from agents.content_publisher import create_content_publisher
+    from agents.content_publisher import publish_due_posts
 
-    return _run_agent(
-        create_content_publisher,
-        "Check for approved feed posts (content_type='photo') and publish them to Instagram.",
-        state,
-    )
+    summary = publish_due_posts("photo")
+    return {"result_summary": summary, "messages": state.get("messages", [])}
 
 
 def content_reviewer_node(state: OrchestratorState) -> dict:
@@ -158,13 +155,10 @@ def content_reviewer_node(state: OrchestratorState) -> dict:
 
 
 def story_publisher_node(state: OrchestratorState) -> dict:
-    from agents.content_publisher import create_story_publisher
+    from agents.content_publisher import publish_due_posts
 
-    return _run_agent(
-        create_story_publisher,
-        "Check for approved stories (content_type='story') and publish them to Instagram.",
-        state,
-    )
+    summary = publish_due_posts("story")
+    return {"result_summary": summary, "messages": state.get("messages", [])}
 
 
 def router(state: OrchestratorState) -> str:

@@ -2,7 +2,7 @@ import logging
 import os
 import time
 import requests
-from datetime import date
+from datetime import date, datetime
 from langchain_core.tools import tool
 
 log = logging.getLogger("capaco")
@@ -34,14 +34,15 @@ def _wait_for_container(container_id: str, max_wait: int = 60, interval: int = 5
 
 
 def _published_today(content_type: str) -> int:
-    """Count how many posts/stories were published today."""
+    """Count how many posts/stories were published today (Israel time)."""
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Jerusalem")).strftime("%Y-%m-%d")
     db = get_db()
-    today = date.today().isoformat()
     row = db.execute(
         "SELECT COUNT(*) as cnt FROM content_queue "
         "WHERE status = 'published' AND content_type = ? "
-        "AND date(published_at) = ?",
-        (content_type, today),
+        "AND CAST(published_at AS TEXT) LIKE ?",
+        (content_type, f"{today}%"),
     ).fetchone()
     return (row["cnt"] if row else 0) or 0
 

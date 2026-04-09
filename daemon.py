@@ -52,8 +52,8 @@ DEFAULT_TIMEOUT = 300
 
 def _has_publishable_content(task_type: str) -> bool:
     """Check if there are approved posts ready to publish for the given task type."""
-    from datetime import timezone, timedelta
-    now_il = datetime.now(timezone(timedelta(hours=3)))  # Israel Standard Time
+    from zoneinfo import ZoneInfo
+    now_il = datetime.now(ZoneInfo("Asia/Jerusalem"))
     today = now_il.strftime("%Y-%m-%d")
     now_time = now_il.strftime("%H:%M")
 
@@ -70,8 +70,8 @@ def _has_publishable_content(task_type: str) -> bool:
 
 def _skip_reason(content_type: str) -> str:
     """Diagnose why there's nothing to publish — returns a human-readable reason."""
-    from datetime import timezone, timedelta
-    now_il = datetime.now(timezone(timedelta(hours=3)))
+    from zoneinfo import ZoneInfo
+    now_il = datetime.now(ZoneInfo("Asia/Jerusalem"))
     today = now_il.strftime("%Y-%m-%d")
     now_time = now_il.strftime("%H:%M")
 

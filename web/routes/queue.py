@@ -133,7 +133,7 @@ def _do_approve(post_id: int):
     from db.connection import get_db
     db = get_db()
     row = db.execute(
-        "SELECT image_url FROM content_queue WHERE id = ? AND status = 'pending_approval'",
+        "SELECT image_url FROM content_queue WHERE id = ? AND status IN ('pending_approval', 'draft')",
         (post_id,),
     ).fetchone()
     if not row:
@@ -156,7 +156,7 @@ async def approve_post(post_id: int, background_tasks: BackgroundTasks):
     post = await query_one(
         "SELECT status FROM content_queue WHERE id = ?", (post_id,)
     )
-    if not post or post["status"] != "pending_approval":
+    if not post or post["status"] not in ("pending_approval", "draft"):
         return HTMLResponse('<span class="badge badge-failed">Not pending</span>')
 
     # Mark as approved immediately

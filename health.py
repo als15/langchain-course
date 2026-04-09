@@ -2,7 +2,8 @@
 
 import logging
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -10,7 +11,7 @@ from db.connection import get_db, _is_postgres
 
 log = logging.getLogger("capaco")
 
-ISR_TZ = timezone(timedelta(hours=3))
+ISR_TZ = ZoneInfo("Asia/Jerusalem")
 
 
 def check_db() -> tuple[bool, str]:
