@@ -92,10 +92,9 @@ def get_media_insights(media_id: str) -> dict:
 
 
 @tool
-def get_account_insights(period: str = "day", days: int = 7) -> dict:
-    """Get account-level insights like impressions, reach, and follower count over time.
+def get_account_insights(days: int = 7) -> dict:
+    """Get daily account-level insights (impressions, reach, follower count).
     Args:
-        period: The aggregation period - 'day' or 'week'.
         days: Number of days to look back (max 30).
     """
     from datetime import datetime, timedelta
@@ -108,17 +107,15 @@ def get_account_insights(period: str = "day", days: int = 7) -> dict:
     until_ts = int(until.timestamp())
     headers = _get_headers()
 
-    # impressions and reach support day/week/days_28
     resp = requests.get(url, params={
         "metric": "impressions,reach",
-        "period": period,
+        "period": "day",
         "since": since_ts,
         "until": until_ts,
     }, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json().get("data", [])
 
-    # follower_count only supports period=day
     resp2 = requests.get(url, params={
         "metric": "follower_count",
         "period": "day",
