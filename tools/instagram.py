@@ -80,14 +80,19 @@ def get_recent_media(limit: int = 10) -> list[dict]:
 
 @tool
 def get_media_insights(media_id: str) -> dict:
-    """Get detailed insights for a specific post (impressions, reach, engagement).
+    """Get detailed insights for a specific post (views, reach, likes, shares, saves).
     Args:
         media_id: The Instagram media ID to get insights for.
     """
     url = f"{GRAPH_API_BASE}/{media_id}/insights"
-    params = {"metric": "impressions,reach,engagement,saved"}
+    params = {"metric": "reach,views,likes,shares,saved,comments"}
     resp = requests.get(url, params=params, headers=_get_headers(), timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        err = resp.json().get("error", {})
+        raise RuntimeError(
+            f"Instagram API error for media {media_id}: "
+            f"[{err.get('code')}] {err.get('message', resp.text)}"
+        )
     return resp.json().get("data", [])
 
 
@@ -107,23 +112,24 @@ def get_account_insights(days: int = 7) -> dict:
     until_ts = int(until.timestamp())
     headers = _get_headers()
 
-    resp = requests.get(url, params={
-        "metric": "impressions,reach",
-        "period": "day",
-        "since": since_ts,
-        "until": until_ts,
-    }, headers=headers, timeout=30)
-    resp.raise_for_status()
-    data = resp.json().get("data", [])
+    base_params = {"period": "day", "since": since_ts, "until": until_ts}
+    # time_series metrics and total_value metrics must be fetched separately
+    calls = [
+        {"metric": "reach,follower_count"},
+        {"metric": "views", "metric_type": "total_value"},
+    ]
 
-    resp2 = requests.get(url, params={
-        "metric": "follower_count",
-        "period": "day",
-        "since": since_ts,
-        "until": until_ts,
-    }, headers=headers, timeout=30)
-    resp2.raise_for_status()
-    data.extend(resp2.json().get("data", []))
+    data = []
+    for extra in calls:
+        params = {**base_params, **extra}
+        resp = requests.get(url, params=params, headers=headers, timeout=30)
+        if not resp.ok:
+            err = resp.json().get("error", {})
+            raise RuntimeError(
+                f"Instagram API error for {extra['metric']}: "
+                f"[{err.get('code')}] {err.get('message', resp.text)}"
+            )
+        data.extend(resp.json().get("data", []))
 
     return data
 
