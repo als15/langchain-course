@@ -39,6 +39,12 @@ log = logging.getLogger("capaco")
 # Tasks that should skip silently when there's nothing to publish
 SKIP_WHEN_EMPTY = {"publish", "publish_stories"}
 
+# Sunday pipeline dependencies: task -> prerequisite that must have succeeded today
+TASK_DEPENDENCIES = {
+    "design_review": "content_planning",
+    "image_generation": "design_review",
+}
+
 # Per-task timeout in seconds
 TASK_TIMEOUTS = {
     "publish": 300,
@@ -48,6 +54,37 @@ TASK_TIMEOUTS = {
     "content_review": 600,
 }
 DEFAULT_TIMEOUT = 300
+
+
+def _dependency_met(task_type: str) -> tuple[bool, str]:
+    """Check if the prerequisite task for this task succeeded today. Returns (ok, reason)."""
+    dep = TASK_DEPENDENCIES.get(task_type)
+    if not dep:
+        return True, ""
+
+    from zoneinfo import ZoneInfo
+    from db.connection import _is_postgres
+    today = datetime.now(ZoneInfo("Asia/Jerusalem")).strftime("%Y-%m-%d")
+
+    db = get_db()
+    if _is_postgres():
+        row = db.execute(
+            "SELECT status FROM run_log WHERE task_type = %s "
+            "AND started_at::date = %s::date ORDER BY started_at DESC LIMIT 1",
+            (dep, today),
+        ).fetchone()
+    else:
+        row = db.execute(
+            "SELECT status FROM run_log WHERE task_type = ? "
+            "AND date(started_at) = ? ORDER BY started_at DESC LIMIT 1",
+            (dep, today),
+        ).fetchone()
+
+    if not row:
+        return False, f"Prerequisite '{dep}' has not run today"
+    if row["status"] != "completed":
+        return False, f"Prerequisite '{dep}' {row['status']} today — skipping {task_type}"
+    return True, ""
 
 
 def _has_publishable_content(task_type: str) -> bool:
@@ -145,6 +182,20 @@ async def safe_run(task_type: str, bot):
             (task_type, "skipped", 0, reason),
         )
         db.commit()
+        return
+
+    # Skip if a prerequisite task failed or hasn't run today
+    dep_ok, dep_reason = _dependency_met(task_type)
+    if not dep_ok:
+        log.warning(f"Skipping {task_type}: {dep_reason}")
+        db = get_db()
+        db.execute(
+            "INSERT INTO run_log (task_type, status, duration_seconds, summary) VALUES (?, ?, ?, ?)",
+            (task_type, "skipped", 0, dep_reason),
+        )
+        db.commit()
+        if chat_id:
+            await notify_error(bot, task_type, f"SKIPPED: {dep_reason}")
         return
 
     log.info(f"Starting scheduled task: {task_type}")

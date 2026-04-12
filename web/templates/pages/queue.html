@@ -51,6 +51,7 @@
         {% endif %}
         <div class="post-card-body">
             <div class="post-card-meta">
+                <span class="post-card-id">#{{ post.id }}</span>
                 <span>{{ post.scheduled_date or '' }} {{ (post.scheduled_time or '')[:5] }}</span>
                 <span class="badge badge-{{ post.status }}">{{ post.status.replace('_', ' ') }}</span>
             </div>
