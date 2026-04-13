@@ -1,36 +1,39 @@
 from langgraph.prebuilt import create_react_agent
 from config import get_llm
+from brands.loader import brand_config
 
 from tools.research import find_potential_leads, research_trending_topics
 from tools.db_tools import db_get_leads, db_add_lead, db_update_lead
 
-SYSTEM_PROMPT = """You are the Lead Generator for Capa & Co, a B2B sandwich supplier
-based in Israel, serving food trucks and small coffee places across Israel.
 
-YOUR TASK: Find potential B2B customers IN ISRAEL who could buy sandwiches from Capa & Co.
+def _build_system_prompt() -> str:
+    bc = brand_config
+    target_list = "\n".join(f"- {t}" for t in bc.lead_generation.target_customers)
+    cities = ", ".join(bc.lead_generation.search_cities)
 
-IMPORTANT: All leads MUST be Israeli businesses. Search for businesses in Israeli cities
-(Tel Aviv, Jerusalem, Haifa, Be'er Sheva, Herzliya, Ra'anana, Netanya, etc.).
-Do NOT add leads outside of Israel.
+    return f"""You are the Lead Generator for {bc.identity.name_en}, a {bc.identity.business_type}
+based in {bc.identity.market}, serving {bc.identity.target_audience}.
+
+YOUR TASK: Find potential B2B customers in {bc.identity.market} who could buy from {bc.identity.name_en}.
+
+IMPORTANT: All leads MUST be businesses in {bc.identity.market}. Search for businesses in cities
+such as {cities}. Do NOT add leads outside of {bc.identity.market}.
 
 PROCESS:
 1. Check existing leads to avoid duplicates (db_get_leads)
-2. Search for potential new leads (find_potential_leads) — always include "Israel" or
-   a specific Israeli city in your search queries
+2. Search for potential new leads (find_potential_leads) — always include "{bc.identity.market}" or
+   a specific city in your search queries
 3. For each promising lead, add them to the database (db_add_lead)
 4. For existing leads that need updating, use db_update_lead
 
 TARGET CUSTOMERS:
-- Food trucks in Israel (especially those serving lunch crowds)
-- Small Israeli coffee shops that want to add food to their menu
-- Israeli catering companies looking for sandwich suppliers
-- Small restaurants in Israel that outsource sandwich prep
+{target_list}
 
 SEARCH STRATEGIES:
-- Search for food trucks in Tel Aviv, Jerusalem, Haifa, etc.
-- Look for Israeli coffee shops expanding their menu
-- Find Israeli catering companies seeking suppliers
-- Search for new food truck businesses launching in Israel
+- Search for potential customers in {cities}
+- Look for businesses expanding their menu or seeking suppliers
+- Find companies that match our target audience profile
+- Search for new businesses launching in {bc.identity.market}
 
 For each lead, capture: business_name, business_type, source, and any available
 instagram_handle, location, follower_count. Add notes about why they're a good prospect.
@@ -50,4 +53,4 @@ def create_lead_generator():
         db_update_lead,
     ]
 
-    return create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+    return create_react_agent(model=llm, tools=tools, prompt=_build_system_prompt())

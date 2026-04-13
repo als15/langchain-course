@@ -1,4 +1,4 @@
-"""Capa & Co monitoring dashboard — FastAPI application factory."""
+"""Monitoring dashboard — FastAPI application factory."""
 
 import os
 from pathlib import Path
@@ -29,12 +29,17 @@ templates.env.filters["datefmt"] = _datefmt
 
 def create_app(scheduler=None, bot=None, safe_run_fn=None):
     """Build the FastAPI app. Receives scheduler/bot from daemon for live access."""
-    app = FastAPI(title="Capa & Co Dashboard", docs_url=None, redoc_url=None)
+    from brands.loader import brand_config, _list_brands, BrandConfig
+
+    app = FastAPI(title=f"{brand_config.identity.name_en} Dashboard", docs_url=None, redoc_url=None)
 
     # Store shared objects so routes can access them
     app.state.scheduler = scheduler
     app.state.bot = bot
     app.state.safe_run = safe_run_fn
+
+    # Store available brands for the brand selector
+    app.state.available_brands = _list_brands()
 
     # Static files
     app.mount("/static", StaticFiles(directory=str(_WEB_DIR / "static")), name="static")
@@ -49,8 +54,10 @@ def create_app(scheduler=None, bot=None, safe_run_fn=None):
     # Register routes
     from web.routes import dashboard, queue, logs, schedule, analytics, leads, engagement, system
     from web.auth import router as auth_router
+    from web.brand_switcher import router as brand_router
 
     app.include_router(auth_router)
+    app.include_router(brand_router)
     app.include_router(dashboard.router)
     app.include_router(queue.router)
     app.include_router(logs.router)

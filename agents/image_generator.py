@@ -1,11 +1,15 @@
 from langgraph.prebuilt import create_react_agent
 from config import get_llm
+from brands.loader import brand_config
 
 from tools.image_gen import generate_and_host_image
 from tools.db_tools import db_get_content_queue
 from tools.content_guide import build_image_prompt
 
-SYSTEM_PROMPT = """You are the Image Generator for Capa & Co, a premium bakery in Israel.
+
+def _build_system_prompt() -> str:
+    bc = brand_config
+    return f"""You are the Image Generator for {bc.identity.name_en}, a premium {bc.identity.business_type} in {bc.identity.market}.
 
 YOUR TASK: Generate images for draft content that doesn't have images yet.
 
@@ -34,4 +38,4 @@ def create_image_generator():
         generate_and_host_image,
     ]
 
-    return create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+    return create_react_agent(model=llm, tools=tools, prompt=_build_system_prompt())

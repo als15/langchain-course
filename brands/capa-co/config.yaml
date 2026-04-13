@@ -1,0 +1,198 @@
+# Brand Configuration for Capa & Co
+# This file defines all brand-specific identity, voice, visual style, and scheduling.
+
+identity:
+  name: "קאפה ושות׳"
+  name_en: "Capa & Co"
+  language: "he"
+  timezone: "Asia/Jerusalem"
+  market: "Israel"
+  business_type: "B2B sandwich supplier"
+  target_audience: "food trucks, coffee shops, small restaurants in Israel"
+
+voice:
+  tone: >
+    Premium but approachable. Professional but warm. Like a trusted business partner,
+    not a corporate vendor. Write like a real person running a bakery — short, playful,
+    warm, with personality.
+  caption_style: >
+    ALL captions MUST be in native Israeli Hebrew. Not translated. Not corporate. Not formal.
+    One-liner captions are BEST. Max 2 short sentences. Less is more.
+    Emojis: use sparingly, max one, only if natural.
+    Add 3-5 hashtags at the end, mix Hebrew and English.
+  caption_examples:
+    - 'Butter Croissant: "אפשר להריח את החמאה דרך הטלפון :) #קאפהאנדקו #croissant #בייקרי"'
+    - 'Grilled Halloumi: "כריך שהוא מעט יווני והמון ישראלי #קאפהאנדקו #halloumi #כריכים"'
+    - 'Smoked Salmon: "קלאסיקה שקשה לעמוד בפניה, עם אקסטרה אהבה של קאפה אנד קו בפנים #סלמון #קאפהאנדקו #freshfood"'
+  bad_caption_examples:
+    - '"בוקר טוב! הכריכים שלנו מוכנים למחר, עם מצרכים טריים ואיכותיים" — too generic, corporate'
+    - '"גאווה גדולה לספק ללקוחותינו המיוחדים!" — sounds translated, stiff'
+    - '"טיפ לעסקי מזון: חשוב להתאים את התפריט" — no one talks like this'
+  hashtags_default:
+    - "#קאפהאנדקו"
+
+visual:
+  style_description: >
+    Minimal, earthy, boutique-feel. Specialty coffee branding meets artisan food.
+    Earthy, warm tones (greens, browns, creams) — never cold blues or neon.
+    Clean, minimal compositions with generous whitespace.
+    Natural textures (wood, marble, linen, fresh ingredients).
+    Photography: natural daylight, shallow depth of field, warm color grading.
+  image_base_prompt: >
+    Photorealistic RAW photo, soft natural morning daylight from the left,
+    warm ivory/cream/sand palette, matte ceramic props, clean negative space,
+    premium artisanal bakery styling
+  image_negative_prompt: >
+    text, typography, logo, watermark, menu text, busy cafe interior, crowded table,
+    too many props, oversaturated colors, plastic CGI texture, duplicated ingredients,
+    deformed bread, broken anatomy, weird hands, fake steam, extreme blur,
+    messy sauce splashes, low resolution, cartoon look
+  bg_objects:
+    # Fruits & vegetables
+    - "a bright lemon"
+    - "a ripe pomegranate cut in half"
+    - "scattered fresh figs"
+    - "a cluster of red grapes"
+    - "a halved blood orange"
+    - "a green pear"
+    - "a bowl of cherry tomatoes"
+    - "a sliced avocado"
+    - "a handful of fresh dates"
+    - "a small pile of kumquats"
+    - "ripe apricots"
+    - "a persimmon"
+    # Flowers & greenery
+    - "a bright lavender flower sprig"
+    - "a stem of dried eucalyptus"
+    - "a single peony bloom"
+    - "a small bunch of chamomile"
+    - "a sprig of fresh rosemary"
+    - "a few wildflowers in a tiny vase"
+    - "a succulent in a terracotta pot"
+    - "a stem of cotton flowers"
+    - "dried wheat stalks"
+    - "a white ranunculus"
+    # Linens & textiles
+    - "a coral-pink linen napkin"
+    - "a mustard-yellow cloth draped softly"
+    - "a sage-green tea towel"
+    - "a crumpled terracotta linen"
+    - "an ivory cheesecloth"
+    - "a dusty-blue napkin"
+    - "a striped kitchen towel"
+    # Cutlery & utensils
+    - "a brass vintage spoon"
+    - "rustic wooden salad servers"
+    - "a matte-black fork"
+    - "an antique silver butter knife"
+    - "a small copper measuring cup"
+    - "a ceramic honey dipper"
+    - "a pair of wooden chopsticks"
+    # Ceramics & dishes
+    - "a turquoise ceramic cup"
+    - "a small speckled stoneware bowl"
+    - "a hand-thrown clay plate"
+    - "a white ramekin"
+    - "a pale-blue saucer"
+    - "a tiny terracotta pinch pot"
+    - "a glazed sake cup"
+    # Spices & condiments
+    - "a pinch of saffron threads on a saucer"
+    - "a small bowl of flaky sea salt"
+    - "a scatter of pink peppercorns"
+    - "a mortar with crushed spices"
+    - "a cinnamon stick bundle"
+    - "star anise on the counter"
+    - "a tiny dish of sumac"
+    - "a sprinkle of sesame seeds"
+    # Bottles & liquids
+    - "an olive oil bottle with golden liquid"
+    - "a dark balsamic vinegar bottle"
+    - "a small carafe of red wine"
+    - "a clear bottle of herb-infused oil"
+    - "a honey jar with a wooden stick"
+    - "a ceramic sake bottle"
+    - "a small amber bottle of vanilla extract"
+    # Kitchen appliances & tools
+    - "a copper kettle in the background"
+    - "a small moka pot"
+    - "a vintage kitchen scale"
+    - "a marble rolling pin"
+    - "a wooden cutting board"
+    - "a cast-iron trivet"
+  bg_colors:
+    - "vivid coral"
+    - "soft sage-green"
+    - "warm amber"
+    - "dusty rose"
+    - "bright turquoise"
+    - "pale lavender"
+    - "burnt sienna"
+    - "golden ochre"
+    - "mint green"
+    - "terracotta"
+    - "powder blue"
+    - "marigold yellow"
+    - "blush pink"
+    - "deep plum accent"
+    - "warm peach"
+  color_palette:
+    brand_green: "#4A5D3A"
+    green_soft: "#8FA878"
+    cream: "#FAF7F2"
+    dark: "#1A1A18"
+    dark_surface: "#2A2A26"
+
+content_strategy:
+  weekly_feed_posts: 5
+  weekly_stories: 7
+  max_posts_per_day: 1
+  max_stories_per_day: 2
+  content_pillars:
+    - product
+    - behind_scenes
+    - customer_spotlight
+    - industry_tips
+    - social_proof
+  feed_post_times: ["07:00", "12:00"]
+  story_time: "09:00"
+  texture_breakers_per_week: 2
+
+schedule:
+  planning_day: "sun"
+  culinary_review_hour: 6
+  culinary_review_minute: 30
+  planning_hour: 7
+  design_review_hour: 8
+  image_generation_hour: 9
+  publish_hours: "6,8,10,12,14,16,18,20"
+  analytics_hour: 18
+  content_review_hour: 19
+  engagement_days: "tue,thu"
+  engagement_hour: 10
+  lead_gen_day: "wed"
+  lead_gen_hour: 10
+  token_refresh_days: 50
+  health_check_minutes: 30
+
+lead_generation:
+  target_customers:
+    - "Food trucks (especially those serving lunch crowds)"
+    - "Small coffee shops that want to add food to their menu"
+    - "Catering companies looking for sandwich suppliers"
+    - "Small restaurants that outsource sandwich prep"
+  search_cities:
+    - "Tel Aviv"
+    - "Jerusalem"
+    - "Haifa"
+    - "Be'er Sheva"
+    - "Herzliya"
+    - "Ra'anana"
+    - "Netanya"
+
+seasonal_calendar:
+  winter: "comfort food, soups, shakshuka, pastries, warm drinks, Hanukkah foods"
+  spring: "light salads, Passover specials, fresh herbs, picnic foods"
+  summer: "cold sandwiches, iced drinks, grilled items, light and fresh"
+  fall: "Rosh Hashana sweets, honey-based items, back-to-routine lunch specials"
+  weekly_rhythm: "challah/Shabbat prep on Thursday-Friday, fresh start on Sunday"

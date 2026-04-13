@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from web import templates
 from web.db import query, query_one, execute
+from web.brand_switcher import get_dashboard_brand, get_brand_context
 
 router = APIRouter()
 log = logging.getLogger("capaco")
@@ -23,13 +24,14 @@ DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 async def queue_page(request: Request):
     from web.routes.dashboard import _global_stats
 
+    brand_id = get_dashboard_brand(request)
     view = request.query_params.get("view", "grid")
     status_filter = request.query_params.get("status", "")
     type_filter = request.query_params.get("type", "")
 
     # Build query
-    conditions = []
-    params = []
+    conditions = ["brand_id = ?"]
+    params = [brand_id]
     if status_filter:
         conditions.append("status = ?")
         params.append(status_filter)
@@ -37,7 +39,7 @@ async def queue_page(request: Request):
         conditions.append("content_type = ?")
         params.append(type_filter)
 
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
     rows = await query(
         f"SELECT id, scheduled_date, scheduled_time, content_type, content_pillar, "
         f"topic, status, image_url FROM content_queue {where} "
@@ -47,11 +49,12 @@ async def queue_page(request: Request):
 
     # Status counts for filter pills
     counts_rows = await query(
-        "SELECT status, COUNT(*) as count FROM content_queue GROUP BY status"
+        "SELECT status, COUNT(*) as count FROM content_queue WHERE brand_id = ? GROUP BY status",
+        (brand_id,),
     )
     counts = {r["status"]: r["count"] for r in counts_rows}
 
-    stats = await _global_stats()
+    stats = await _global_stats(brand_id)
 
     # For timeline view, group posts by date into weeks
     timeline_weeks = []
@@ -98,6 +101,7 @@ async def queue_page(request: Request):
         "type_filter": type_filter,
         "view": view,
         "timeline_weeks": timeline_weeks,
+        **get_brand_context(request),
     })
 
 
@@ -105,7 +109,12 @@ async def queue_page(request: Request):
 async def queue_detail(request: Request, post_id: int):
     from web.routes.dashboard import _global_stats
 
-    post = await query_one("SELECT * FROM content_queue WHERE id = ?", (post_id,))
+    brand_id = get_dashboard_brand(request)
+
+    post = await query_one(
+        "SELECT * FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post:
         return HTMLResponse("<h1>Post not found</h1>", status_code=404)
 
@@ -113,18 +122,19 @@ async def queue_detail(request: Request, post_id: int):
     perf = None
     if post.get("instagram_media_id"):
         perf = await query_one(
-            "SELECT * FROM post_performance WHERE content_queue_id = ? "
+            "SELECT * FROM post_performance WHERE content_queue_id = ? AND brand_id = ? "
             "ORDER BY measured_at DESC LIMIT 1",
-            (post_id,),
+            (post_id, brand_id),
         )
 
-    stats = await _global_stats()
+    stats = await _global_stats(brand_id)
 
     return templates.TemplateResponse(request, "pages/queue_detail.html", {
         "active_page": "queue",
         "stats": stats,
         "post": post,
         "perf": perf,
+        **get_brand_context(request),
     })
 
 
@@ -152,9 +162,11 @@ def _do_approve(post_id: int):
 
 
 @router.post("/queue/{post_id}/approve", response_class=HTMLResponse)
-async def approve_post(post_id: int, background_tasks: BackgroundTasks):
+async def approve_post(request: Request, post_id: int, background_tasks: BackgroundTasks):
+    brand_id = get_dashboard_brand(request)
     post = await query_one(
-        "SELECT status FROM content_queue WHERE id = ?", (post_id,)
+        "SELECT status FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
     )
     if not post or post["status"] not in ("pending_approval", "draft"):
         return HTMLResponse('<span class="badge badge-failed">Not pending</span>')
@@ -162,8 +174,8 @@ async def approve_post(post_id: int, background_tasks: BackgroundTasks):
     # Mark as approved immediately
     await execute(
         "UPDATE content_queue SET status = 'approved', approved_by = 'dashboard', "
-        "approved_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (post_id,),
+        "approved_at = CURRENT_TIMESTAMP WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
     )
 
     # Upscale in background
@@ -173,40 +185,47 @@ async def approve_post(post_id: int, background_tasks: BackgroundTasks):
 
 
 @router.post("/queue/{post_id}/reject", response_class=HTMLResponse)
-async def reject_post(post_id: int):
+async def reject_post(request: Request, post_id: int):
+    brand_id = get_dashboard_brand(request)
     await execute(
-        "UPDATE content_queue SET status = 'rejected' WHERE id = ? AND status = 'pending_approval'",
-        (post_id,),
+        "UPDATE content_queue SET status = 'rejected' WHERE id = ? AND status = 'pending_approval' AND brand_id = ?",
+        (post_id, brand_id),
     )
     return HTMLResponse('<span class="badge badge-rejected">Rejected</span>')
 
 
 @router.post("/queue/{post_id}/requeue", response_class=HTMLResponse)
-async def requeue_post(post_id: int):
+async def requeue_post(request: Request, post_id: int):
+    brand_id = get_dashboard_brand(request)
     post = await query_one(
-        "SELECT status, image_url FROM content_queue WHERE id = ?", (post_id,)
+        "SELECT status, image_url FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
     )
     if not post or post["status"] != "rejected":
         return HTMLResponse('<span class="badge badge-failed">Not rejected</span>')
 
     new_status = "pending_approval" if post.get("image_url") else "draft"
     await execute(
-        "UPDATE content_queue SET status = ? WHERE id = ?",
-        (new_status, post_id),
+        "UPDATE content_queue SET status = ? WHERE id = ? AND brand_id = ?",
+        (new_status, post_id, brand_id),
     )
     return HTMLResponse(f'<span class="badge badge-{new_status}">{new_status.replace("_", " ")}</span>')
 
 
 @router.post("/queue/{post_id}/edit-schedule", response_class=HTMLResponse)
-async def edit_schedule(post_id: int, scheduled_date: str = Form(""), scheduled_time: str = Form("")):
-    post = await query_one("SELECT status FROM content_queue WHERE id = ?", (post_id,))
+async def edit_schedule(request: Request, post_id: int, scheduled_date: str = Form(""), scheduled_time: str = Form("")):
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT status FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post or post["status"] not in ("pending_approval", "draft", "approved"):
         return HTMLResponse('<div class="detail-field"><div class="detail-field-label">Schedule</div>'
                             '<div class="detail-field-value text-sm" style="color:var(--status-failed)">Cannot edit.</div></div>')
 
     await execute(
-        "UPDATE content_queue SET scheduled_date = ?, scheduled_time = ? WHERE id = ?",
-        (scheduled_date, scheduled_time, post_id),
+        "UPDATE content_queue SET scheduled_date = ?, scheduled_time = ? WHERE id = ? AND brand_id = ?",
+        (scheduled_date, scheduled_time, post_id, brand_id),
     )
     from html import escape
     return HTMLResponse(
@@ -218,13 +237,20 @@ async def edit_schedule(post_id: int, scheduled_date: str = Form(""), scheduled_
 
 
 @router.post("/queue/{post_id}/edit-caption", response_class=HTMLResponse)
-async def edit_caption(post_id: int, caption: str = Form("")):
-    post = await query_one("SELECT status FROM content_queue WHERE id = ?", (post_id,))
+async def edit_caption(request: Request, post_id: int, caption: str = Form("")):
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT status FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post or post["status"] not in ("pending_approval", "draft", "approved"):
         return HTMLResponse('<div class="detail-field"><div class="detail-field-label">Caption</div>'
                             '<div class="detail-field-value text-sm" style="color:var(--status-failed)">Cannot edit.</div></div>')
 
-    await execute("UPDATE content_queue SET caption = ? WHERE id = ?", (caption, post_id))
+    await execute(
+        "UPDATE content_queue SET caption = ? WHERE id = ? AND brand_id = ?",
+        (caption, post_id, brand_id),
+    )
     from html import escape
     escaped = escape(caption)
     return HTMLResponse(
@@ -236,13 +262,20 @@ async def edit_caption(post_id: int, caption: str = Form("")):
 
 
 @router.post("/queue/{post_id}/edit-hashtags", response_class=HTMLResponse)
-async def edit_hashtags(post_id: int, hashtags: str = Form("")):
-    post = await query_one("SELECT status FROM content_queue WHERE id = ?", (post_id,))
+async def edit_hashtags(request: Request, post_id: int, hashtags: str = Form("")):
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT status FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post or post["status"] not in ("pending_approval", "draft", "approved"):
         return HTMLResponse('<div class="detail-field"><div class="detail-field-label">Hashtags</div>'
                             '<div class="detail-field-value text-sm" style="color:var(--status-failed)">Cannot edit.</div></div>')
 
-    await execute("UPDATE content_queue SET hashtags = ? WHERE id = ?", (hashtags, post_id))
+    await execute(
+        "UPDATE content_queue SET hashtags = ? WHERE id = ? AND brand_id = ?",
+        (hashtags, post_id, brand_id),
+    )
     from html import escape
     escaped = escape(hashtags)
     return HTMLResponse(
@@ -297,6 +330,7 @@ def _do_direct_regen(post_id: int, direction: str, content_pillar: str):
 
 @router.post("/queue/{post_id}/direct-regen", response_class=HTMLResponse)
 async def direct_regen_post(
+    request: Request,
     post_id: int,
     background_tasks: BackgroundTasks,
     direction: str = Form(""),
@@ -304,7 +338,11 @@ async def direct_regen_post(
     if not direction.strip():
         return HTMLResponse('<div class="text-sm" style="color:var(--status-failed)">Please enter a direction.</div>')
 
-    post = await query_one("SELECT id, content_pillar FROM content_queue WHERE id = ?", (post_id,))
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT id, content_pillar FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post:
         return HTMLResponse('<div class="text-sm" style="color:var(--status-failed)">Post not found.</div>')
 
@@ -360,8 +398,12 @@ No markdown, no explanation, just the JSON array."""
 
 
 @router.post("/queue/{post_id}/suggestions", response_class=HTMLResponse)
-async def get_suggestions(post_id: int):
-    post = await query_one("SELECT * FROM content_queue WHERE id = ?", (post_id,))
+async def get_suggestions(request: Request, post_id: int):
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT * FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post:
         return HTMLResponse('<div class="text-sm text-muted">Post not found.</div>')
 
@@ -440,6 +482,7 @@ def _do_regenerate(post_id: int, topic: str, caption: str, hashtags: str,
 
 @router.post("/queue/{post_id}/regenerate", response_class=HTMLResponse)
 async def regenerate_post(
+    request: Request,
     post_id: int,
     background_tasks: BackgroundTasks,
     topic: str = Form(""),
@@ -448,7 +491,11 @@ async def regenerate_post(
     visual_direction: str = Form(""),
     content_pillar: str = Form(""),
 ):
-    post = await query_one("SELECT id FROM content_queue WHERE id = ?", (post_id,))
+    brand_id = get_dashboard_brand(request)
+    post = await query_one(
+        "SELECT id FROM content_queue WHERE id = ? AND brand_id = ?",
+        (post_id, brand_id),
+    )
     if not post:
         return HTMLResponse('<div class="text-sm" style="color:var(--status-failed)">Post not found.</div>')
 

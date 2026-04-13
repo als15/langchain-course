@@ -9,18 +9,15 @@ from zoneinfo import ZoneInfo
 
 from db.connection import get_db
 from tools.instagram import publish_photo_post, publish_story, _published_today
+from brands.loader import brand_config
 
 log = logging.getLogger("capaco")
-
-IL_TZ = ZoneInfo("Asia/Jerusalem")
-
-MAX_POSTS_PER_DAY = 1
-MAX_STORIES_PER_DAY = 2
 
 
 def publish_due_posts(content_type: str) -> str:
     """Publish all due approved posts of the given content type. Returns a summary string."""
-    now = datetime.now(IL_TZ)
+    tz = ZoneInfo(brand_config.identity.timezone)
+    now = datetime.now(tz)
     today = now.strftime("%Y-%m-%d")
     now_time = now.strftime("%H:%M")
 
@@ -29,16 +26,18 @@ def publish_due_posts(content_type: str) -> str:
     rows = db.execute(
         "SELECT id, image_url, caption, hashtags, content_type, instagram_media_id "
         "FROM content_queue "
-        "WHERE status = 'approved' AND content_type = ? AND image_url IS NOT NULL "
+        "WHERE status = 'approved' AND content_type = ? AND brand_id = ? AND image_url IS NOT NULL "
         "AND (scheduled_date < ? OR (scheduled_date = ? AND scheduled_time <= ?)) "
         "ORDER BY scheduled_date ASC, scheduled_time ASC",
-        (content_type, today, today, now_time),
+        (content_type, brand_config.slug, today, today, now_time),
     ).fetchall()
 
     if not rows:
         return f"No due {content_type} posts to publish."
 
-    max_per_day = MAX_POSTS_PER_DAY if content_type == "photo" else MAX_STORIES_PER_DAY
+    max_posts = brand_config.content_strategy.max_posts_per_day
+    max_stories = brand_config.content_strategy.max_stories_per_day
+    max_per_day = max_posts if content_type == "photo" else max_stories
     already_published = _published_today(content_type)
 
     published = 0

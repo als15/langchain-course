@@ -1,72 +1,23 @@
-"""Parse docs/CONTENT_GUIDE.md and build image prompts from per-dish entries."""
+"""Parse brand CONTENT_GUIDE.md and build image prompts from per-dish entries."""
 
-import os
 import re
 import random
 import difflib
 from functools import lru_cache
 from langchain_core.tools import tool
 
-_GUIDE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "CONTENT_GUIDE.md")
-
-_BRAND_BASE = (
-    "Photorealistic RAW photo, soft natural morning daylight from the left, "
-    "warm ivory/cream/sand palette, matte ceramic props, clean negative space, "
-    "premium artisanal bakery styling"
-)
-
-_BG_OBJECTS = [
-    # Fruits & vegetables
-    "a bright lemon", "a ripe pomegranate cut in half", "scattered fresh figs",
-    "a cluster of red grapes", "a halved blood orange", "a green pear",
-    "a bowl of cherry tomatoes", "a sliced avocado", "a handful of fresh dates",
-    "a small pile of kumquats", "ripe apricots", "a persimmon",
-    # Flowers & greenery
-    "a bright lavender flower sprig", "a stem of dried eucalyptus",
-    "a single peony bloom", "a small bunch of chamomile", "a sprig of fresh rosemary",
-    "a few wildflowers in a tiny vase", "a succulent in a terracotta pot",
-    "a stem of cotton flowers", "dried wheat stalks", "a white ranunculus",
-    # Linens & textiles
-    "a coral-pink linen napkin", "a mustard-yellow cloth draped softly",
-    "a sage-green tea towel", "a crumpled terracotta linen", "an ivory cheesecloth",
-    "a dusty-blue napkin", "a striped kitchen towel",
-    # Cutlery & utensils
-    "a brass vintage spoon", "rustic wooden salad servers", "a matte-black fork",
-    "an antique silver butter knife", "a small copper measuring cup",
-    "a ceramic honey dipper", "a pair of wooden chopsticks",
-    # Ceramics & dishes
-    "a turquoise ceramic cup", "a small speckled stoneware bowl",
-    "a hand-thrown clay plate", "a white ramekin", "a pale-blue saucer",
-    "a tiny terracotta pinch pot", "a glazed sake cup",
-    # Spices & condiments
-    "a pinch of saffron threads on a saucer", "a small bowl of flaky sea salt",
-    "a scatter of pink peppercorns", "a mortar with crushed spices",
-    "a cinnamon stick bundle", "star anise on the counter",
-    "a tiny dish of sumac", "a sprinkle of sesame seeds",
-    # Bottles & liquids
-    "an olive oil bottle with golden liquid", "a dark balsamic vinegar bottle",
-    "a small carafe of red wine", "a clear bottle of herb-infused oil",
-    "a honey jar with a wooden stick", "a ceramic sake bottle",
-    "a small amber bottle of vanilla extract",
-    # Kitchen appliances & tools
-    "a copper kettle in the background", "a small moka pot",
-    "a vintage kitchen scale", "a marble rolling pin",
-    "a wooden cutting board", "a cast-iron trivet",
-]
-
-_COLORS = [
-    "vivid coral", "soft sage-green", "warm amber", "dusty rose",
-    "bright turquoise", "pale lavender", "burnt sienna", "golden ochre",
-    "mint green", "terracotta", "powder blue", "marigold yellow",
-    "blush pink", "deep plum accent", "warm peach",
-]
+from brands.loader import brand_config
 
 
 def _random_bg_objects() -> str:
     """Generate a randomized background-objects clause for image prompts."""
+    bg_objects = brand_config.visual.bg_objects
+    bg_colors = brand_config.visual.bg_colors
+    if not bg_objects or not bg_colors:
+        return ""
     count = random.randint(1, 5)
-    chosen = random.sample(_BG_OBJECTS, min(count, len(_BG_OBJECTS)))
-    color = random.choice(_COLORS)
+    chosen = random.sample(bg_objects, min(count, len(bg_objects)))
+    color = random.choice(bg_colors)
     objects_str = ", ".join(chosen)
     return (
         f"with {count} small decorative background objects in {color} tones "
@@ -77,13 +28,15 @@ def _random_bg_objects() -> str:
 
 
 def _brand_suffix() -> str:
-    return f"{_BRAND_BASE}, {_random_bg_objects()}"
+    base = brand_config.visual.image_base_prompt.strip()
+    bg = _random_bg_objects()
+    return f"{base}, {bg}" if bg else base
 
 
-@lru_cache(maxsize=1)
-def _parse_guide() -> dict:
+@lru_cache(maxsize=None)
+def _parse_guide(guide_path: str) -> dict:
     """Parse the content guide markdown into structured data."""
-    with open(_GUIDE_PATH, encoding="utf-8") as f:
+    with open(guide_path, encoding="utf-8") as f:
         text = f.read()
 
     # Extract negative prompt
@@ -123,18 +76,23 @@ def _parse_guide() -> dict:
     }
 
 
+def _get_guide() -> dict:
+    """Load and parse the current brand's content guide."""
+    return _parse_guide(str(brand_config.content_guide_path))
+
+
 def get_negative_prompt() -> str:
-    return _parse_guide()["negative_prompt"]
+    return _get_guide()["negative_prompt"]
 
 
 def get_menu_items() -> dict[str, list[str]]:
     """Return dish names grouped by category."""
-    return _parse_guide()["categories"]
+    return _get_guide()["categories"]
 
 
 def get_dish_prompt(name: str) -> str | None:
     """Fuzzy-match a dish name and return its expert prompt, or None."""
-    guide = _parse_guide()
+    guide = _get_guide()
     dishes = guide["dishes"]
 
     # Exact match first

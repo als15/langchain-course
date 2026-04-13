@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from web import templates
 from web.db import query, query_one
+from web.brand_switcher import get_dashboard_brand, get_brand_context
 
 router = APIRouter()
 log = logging.getLogger("capaco")
@@ -31,12 +32,15 @@ SCHEDULE_DEFS = [
 async def schedule_page(request: Request):
     from web.routes.dashboard import _global_stats
 
+    brand_id = get_dashboard_brand(request)
+
     # Last run per task type
     last_runs = await query(
         "SELECT task_type, "
         "MAX(CASE WHEN status='completed' THEN started_at END) as last_success, "
         "MAX(CASE WHEN status='failed' THEN started_at END) as last_failure "
-        "FROM run_log GROUP BY task_type"
+        "FROM run_log WHERE brand_id = ? GROUP BY task_type",
+        (brand_id,),
     )
     last_run_map = {r["task_type"]: r for r in last_runs}
 
@@ -53,9 +57,10 @@ async def schedule_page(request: Request):
     upcoming = await query(
         "SELECT id, scheduled_date, scheduled_time, content_type, topic, status, image_url "
         "FROM content_queue "
-        "WHERE status IN ('draft', 'pending_approval', 'approved') "
+        "WHERE brand_id = ? AND status IN ('draft', 'pending_approval', 'approved') "
         "AND scheduled_date >= CAST(date('now') AS TEXT) "
-        "ORDER BY scheduled_date, scheduled_time LIMIT 14"
+        "ORDER BY scheduled_date, scheduled_time LIMIT 14",
+        (brand_id,),
     )
 
     # Next run times from scheduler if available
@@ -67,7 +72,7 @@ async def schedule_page(request: Request):
             if next_run:
                 next_runs[job.id] = next_run.strftime("%Y-%m-%d %H:%M")
 
-    stats = await _global_stats()
+    stats = await _global_stats(brand_id)
 
     return templates.TemplateResponse(request, "pages/schedule.html", {
         "active_page": "schedule",
@@ -75,6 +80,7 @@ async def schedule_page(request: Request):
         "schedule": schedule,
         "upcoming": upcoming,
         "next_runs": next_runs,
+        **get_brand_context(request),
     })
 
 
@@ -94,7 +100,8 @@ async def trigger_task(request: Request, task_type: str):
     from datetime import datetime, timezone
     trigger_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-    log.info(f"Dashboard triggered task: {task_type}")
+    brand_id = get_dashboard_brand(request)
+    log.info(f"Dashboard triggered task: {task_type} for brand: {brand_id}")
     asyncio.create_task(safe_run(task_type, bot))
 
     return HTMLResponse(
@@ -110,11 +117,12 @@ async def trigger_task(request: Request, task_type: str):
 async def last_run_status(request: Request, task_type: str):
     """Poll endpoint: returns the latest run_log entry after the given timestamp."""
     after = request.query_params.get("after", "")
+    brand_id = get_dashboard_brand(request)
 
     row = await query_one(
         "SELECT status, summary, error, duration_seconds FROM run_log "
-        "WHERE task_type = ? AND started_at >= ? ORDER BY started_at DESC LIMIT 1",
-        (task_type, after),
+        "WHERE task_type = ? AND started_at >= ? AND brand_id = ? ORDER BY started_at DESC LIMIT 1",
+        (task_type, after, brand_id),
     )
 
     if not row:

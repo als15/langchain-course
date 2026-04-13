@@ -1,10 +1,11 @@
-"""Interactive CLI and manual task runner for Capa & Co Instagram agents."""
+"""Interactive CLI and manual task runner for Instagram agents."""
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 import sys
+from brands.loader import init_brand
 from db.schema import init_db
 from graph.orchestrator import run_task
 
@@ -24,6 +25,7 @@ TASKS = {
 
 def interactive_mode():
     """Run a specific agent interactively with custom prompts."""
+    from brands.loader import brand_config
     from agents.content_strategist import create_content_strategist
     from agents.analytics_agent import create_analytics_agent
     from agents.lead_generator import create_lead_generator
@@ -36,7 +38,7 @@ def interactive_mode():
         "engagement": ("Engagement Advisor", create_engagement_advisor),
     }
 
-    print("\n=== Capa & Co - Interactive Mode ===")
+    print(f"\n=== {brand_config.identity.name_en} - Interactive Mode ===")
     print("\nAvailable agents:")
     for key, (name, _) in agents.items():
         print(f"  {key:15s} - {name}")
@@ -70,42 +72,57 @@ def interactive_mode():
         messages = result["messages"]
 
 
+def _get_task_arg() -> str | None:
+    """Extract the task argument, skipping --brand and its value."""
+    skip_next = False
+    for arg in sys.argv[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "--brand":
+            skip_next = True
+            continue
+        return arg
+    return None
+
+
 def main():
+    bc = init_brand()
     init_db()
 
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
+    task_arg = _get_task_arg()
 
-        if arg == "interactive":
+    if task_arg:
+        if task_arg == "interactive":
             interactive_mode()
             return
 
-        if arg in TASKS:
-            task_type = TASKS[arg]
-            print(f"Running task: {task_type}...")
+        if task_arg in TASKS:
+            task_type = TASKS[task_arg]
+            print(f"[{bc.identity.name_en}] Running task: {task_type}...")
             summary = run_task(task_type)
             print(f"\nResult:\n{summary}")
             return
 
-        print(f"Unknown command: {arg}")
+        print(f"Unknown command: {task_arg}")
         print()
 
-    print("=== Capa & Co - Instagram Agent System ===\n")
+    print(f"=== {bc.identity.name_en} - Instagram Agent System ===\n")
     print("Usage:")
-    print("  python main.py interactive     - Chat with a specific agent")
-    print("  python main.py content         - Run content planning")
-    print("  python main.py design          - Run design review on drafts")
-    print("  python main.py images          - Generate images for drafts")
-    print("  python main.py analytics       - Run analytics")
-    print("  python main.py leads           - Run lead generation")
-    print("  python main.py engagement      - Run engagement advisor")
-    print("  python main.py publish         - Publish approved feed posts")
-    print("  python main.py stories         - Publish approved stories")
-    print("  python main.py review          - Review performance & adjust upcoming content")
+    print("  python main.py [--brand <slug>] interactive     - Chat with a specific agent")
+    print("  python main.py [--brand <slug>] content         - Run content planning")
+    print("  python main.py [--brand <slug>] design          - Run design review on drafts")
+    print("  python main.py [--brand <slug>] images          - Generate images for drafts")
+    print("  python main.py [--brand <slug>] analytics       - Run analytics")
+    print("  python main.py [--brand <slug>] leads           - Run lead generation")
+    print("  python main.py [--brand <slug>] engagement      - Run engagement advisor")
+    print("  python main.py [--brand <slug>] publish         - Publish approved feed posts")
+    print("  python main.py [--brand <slug>] stories         - Publish approved stories")
+    print("  python main.py [--brand <slug>] review          - Review performance & adjust")
     print()
     print("Other tools:")
     print("  python review.py               - Review dashboard (queue, leads, tasks)")
-    print("  python daemon.py               - Start autonomous scheduler + Telegram bot")
+    print("  python daemon.py --brand <slug> - Start autonomous scheduler + Telegram bot")
 
 
 if __name__ == "__main__":

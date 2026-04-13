@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard{% endblock %} — Capa &amp; Co</title>
+    <title>{% block title %}Dashboard{% endblock %} — {{ current_brand_name or 'Dashboard' }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700&family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
@@ -13,8 +13,29 @@
 <body>
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <span class="brand-logo">קאפה ושות׳</span>
+            <span class="brand-logo">{{ current_brand_name or 'Dashboard' }}</span>
+            {% if brands and brands|length > 1 %}
+            <form action="/switch-brand" method="post" class="brand-switcher">
+                <select name="brand" onchange="this.form.submit()" style="
+                    background: rgba(250,247,242,0.06);
+                    border: 1px solid rgba(250,247,242,0.12);
+                    color: rgba(250,247,242,0.7);
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    font-family: inherit;
+                    width: 100%;
+                    cursor: pointer;
+                    margin-top: 4px;
+                ">
+                    {% for b in brands %}
+                    <option value="{{ b.slug }}" {% if b.slug == current_brand %}selected{% endif %}>{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% else %}
             <span class="brand-sub">Dashboard</span>
+            {% endif %}
         </div>
         <ul class="nav-links">
             <li><a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}">

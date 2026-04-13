@@ -34,15 +34,16 @@ def _wait_for_container(container_id: str, max_wait: int = 60, interval: int = 5
 
 
 def _published_today(content_type: str) -> int:
-    """Count how many posts/stories were published today (Israel time)."""
+    """Count how many posts/stories were published today (brand timezone)."""
     from zoneinfo import ZoneInfo
-    today = datetime.now(ZoneInfo("Asia/Jerusalem")).strftime("%Y-%m-%d")
+    from brands.loader import brand_config
+    today = datetime.now(ZoneInfo(brand_config.identity.timezone)).strftime("%Y-%m-%d")
     db = get_db()
     row = db.execute(
         "SELECT COUNT(*) as cnt FROM content_queue "
-        "WHERE status = 'published' AND content_type = ? "
+        "WHERE status = 'published' AND content_type = ? AND brand_id = ? "
         "AND CAST(published_at AS TEXT) LIKE ?",
-        (content_type, f"{today}%"),
+        (content_type, brand_config.slug, f"{today}%"),
     ).fetchone()
     return (row["cnt"] if row else 0) or 0
 

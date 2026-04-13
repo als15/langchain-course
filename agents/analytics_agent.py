@@ -1,5 +1,6 @@
 from langgraph.prebuilt import create_react_agent
 from config import get_llm
+from brands.loader import brand_config
 
 from tools.instagram import (
     get_instagram_profile,
@@ -15,7 +16,10 @@ from tools.db_tools import (
     db_get_post_performance,
 )
 
-SYSTEM_PROMPT = """You are the Analytics Agent for Capa & Co, a B2B sandwich supplier.
+
+def _build_system_prompt() -> str:
+    bc = brand_config
+    return f"""You are the Analytics Agent for {bc.identity.name_en}, a {bc.identity.business_type}.
 
 YOUR TASK: Track Instagram performance and identify what content works best.
 
@@ -53,4 +57,4 @@ def create_analytics_agent():
         db_get_post_performance,
     ]
 
-    return create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+    return create_react_agent(model=llm, tools=tools, prompt=_build_system_prompt())

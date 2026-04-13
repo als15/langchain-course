@@ -1,5 +1,6 @@
 from langgraph.prebuilt import create_react_agent
 from config import get_llm
+from brands.loader import brand_config
 
 from tools.research import research_trending_topics
 from tools.db_tools import (
@@ -8,10 +9,13 @@ from tools.db_tools import (
     db_get_engagement_tasks,
 )
 
-SYSTEM_PROMPT = """You are the Engagement Advisor for Capa & Co, a B2B sandwich supplier.
+
+def _build_system_prompt() -> str:
+    bc = brand_config
+    return f"""You are the Engagement Advisor for {bc.identity.name_en}, a {bc.identity.business_type}.
 
 YOUR TASK: Suggest Instagram engagement actions that build relationships and visibility
-with potential B2B customers (food trucks, coffee shops).
+with potential B2B customers ({bc.identity.target_audience}).
 
 PROCESS:
 1. Review current leads - these are engagement priorities (db_get_leads)
@@ -25,10 +29,8 @@ PROCESS:
 COMMENT GUIDELINES:
 - Be genuine, never salesy in comments
 - Reference something specific about their post
-- Position Capa & Co as a fellow industry insider
+- Position {bc.identity.name_en} as a fellow industry insider
 - Keep suggested comments under 150 characters
-- Examples: "Love this setup! Fresh ingredients make all the difference 🥪"
-  "Great menu idea - sandwiches always crush it at lunch rush!"
 
 ACTION TYPES: 'comment', 'like', 'follow', 'dm'
 
@@ -48,4 +50,4 @@ def create_engagement_advisor():
         db_get_engagement_tasks,
     ]
 
-    return create_react_agent(model=llm, tools=tools, prompt=SYSTEM_PROMPT)
+    return create_react_agent(model=llm, tools=tools, prompt=_build_system_prompt())

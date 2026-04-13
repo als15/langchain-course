@@ -207,5 +207,8 @@ __marimo__/
 .agents/
 skills-lock.json
 
-# Capa & Co data
+# Brand credentials (each brand's .env stays private)
+brands/*/.env
+
+# Data
 data/

@@ -131,6 +131,12 @@ def init_db():
         _add_column_if_missing(db, "content_queue", "image_url_alt")
         _add_column_if_missing(db, "content_queue", "retry_count", "INTEGER DEFAULT 0")
         _add_column_if_missing(db, "run_log", "error_category")
+
+        # Multi-brand support: add brand_id to all tables
+        for table in ("content_queue", "leads", "analytics_snapshots",
+                      "post_performance", "engagement_tasks", "run_log"):
+            _add_column_if_missing(db, table, "brand_id", "TEXT DEFAULT 'capa-co'")
+
         db.commit()
         _init_done = True
         print("Database initialized successfully.")

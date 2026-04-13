@@ -1,6 +1,12 @@
 import json
 from langchain_core.tools import tool
 from db.connection import get_db
+from brands.loader import brand_config
+
+
+def _brand_id():
+    """Get the current brand slug for DB queries."""
+    return brand_config.slug
 
 
 # ── Content Queue Tools ──────────────────────────────────────────────
@@ -15,8 +21,8 @@ def db_get_content_queue(status: str = "", limit: int = 10, due_only: bool = Fal
     """
     from db.connection import _is_postgres
     db = get_db()
-    conditions = []
-    params = []
+    conditions = ["brand_id = ?"]
+    params = [_brand_id()]
     if status:
         conditions.append("status = ?")
         params.append(status)
@@ -25,7 +31,7 @@ def db_get_content_queue(status: str = "", limit: int = 10, due_only: bool = Fal
             conditions.append("scheduled_date::DATE <= CURRENT_DATE")
         else:
             conditions.append("scheduled_date <= date('now')")
-    where = "WHERE " + " AND ".join(conditions) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
     params.append(limit)
     rows = db.execute(
         f"SELECT * FROM content_queue {where} ORDER BY scheduled_date DESC LIMIT ?",
@@ -61,9 +67,9 @@ def db_add_content_item(
     db = get_db()
     db.execute(
         """INSERT INTO content_queue
-           (scheduled_date, scheduled_time, content_type, content_pillar, topic, caption, hashtags, visual_direction)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (scheduled_date, scheduled_time, content_type, content_pillar, topic, caption, hashtags, visual_direction),
+           (brand_id, scheduled_date, scheduled_time, content_type, content_pillar, topic, caption, hashtags, visual_direction)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (_brand_id(), scheduled_date, scheduled_time, content_type, content_pillar, topic, caption, hashtags, visual_direction),
     )
     db.commit()
     return f"Content item added: '{topic}' scheduled for {scheduled_date} at {scheduled_time}."
@@ -80,18 +86,18 @@ def db_update_post_status(post_id: int, status: str, instagram_media_id: str = "
     db = get_db()
     if status == "published":
         db.execute(
-            "UPDATE content_queue SET status = ?, instagram_media_id = ?, published_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (status, instagram_media_id, post_id),
+            "UPDATE content_queue SET status = ?, instagram_media_id = ?, published_at = CURRENT_TIMESTAMP WHERE id = ? AND brand_id = ?",
+            (status, instagram_media_id, post_id, _brand_id()),
         )
     elif status == "failed":
         db.execute(
-            "UPDATE content_queue SET status = ?, retry_count = COALESCE(retry_count, 0) + 1 WHERE id = ?",
-            (status, post_id),
+            "UPDATE content_queue SET status = ?, retry_count = COALESCE(retry_count, 0) + 1 WHERE id = ? AND brand_id = ?",
+            (status, post_id, _brand_id()),
         )
     else:
         db.execute(
-            "UPDATE content_queue SET status = ? WHERE id = ?",
-            (status, post_id),
+            "UPDATE content_queue SET status = ? WHERE id = ? AND brand_id = ?",
+            (status, post_id, _brand_id()),
         )
     db.commit()
     return f"Post {post_id} status updated to '{status}'."
@@ -131,8 +137,8 @@ def db_revise_content_item(
         params.append(notes)
     if not updates:
         return "No updates provided."
-    params.append(post_id)
-    db.execute(f"UPDATE content_queue SET {', '.join(updates)} WHERE id = ?", params)
+    params.extend([post_id, _brand_id()])
+    db.execute(f"UPDATE content_queue SET {', '.join(updates)} WHERE id = ? AND brand_id = ?", params)
     db.commit()
     return f"Post {post_id} revised: updated {', '.join(f.split(' =')[0] for f in updates)}."
 
@@ -147,16 +153,17 @@ def db_get_leads(status: str = "", limit: int = 20) -> str:
         limit: Max leads to return.
     """
     db = get_db()
+    conditions = ["brand_id = ?"]
+    params = [_brand_id()]
     if status:
-        rows = db.execute(
-            "SELECT * FROM leads WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-            (status, limit),
-        ).fetchall()
-    else:
-        rows = db.execute(
-            "SELECT * FROM leads ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        conditions.append("status = ?")
+        params.append(status)
+    where = "WHERE " + " AND ".join(conditions)
+    params.append(limit)
+    rows = db.execute(
+        f"SELECT * FROM leads {where} ORDER BY created_at DESC LIMIT ?",
+        params,
+    ).fetchall()
     if not rows:
         return f"No leads found{' with status=' + status if status else ''}."
     return json.dumps([dict(r) for r in rows], indent=2, default=str)
@@ -183,16 +190,16 @@ def db_add_lead(
         notes: Additional notes (optional).
     """
     db = get_db()
-    # Check for duplicate by name
+    # Check for duplicate by name within this brand
     existing = db.execute(
-        "SELECT id FROM leads WHERE business_name = ?", (business_name,)
+        "SELECT id FROM leads WHERE business_name = ? AND brand_id = ?", (business_name, _brand_id())
     ).fetchone()
     if existing:
         return f"Lead '{business_name}' already exists (id={existing['id']}). Use db_update_lead to update."
     db.execute(
-        """INSERT INTO leads (business_name, business_type, source, instagram_handle, location, follower_count, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (business_name, business_type, source, instagram_handle, location, follower_count, notes),
+        """INSERT INTO leads (brand_id, business_name, business_type, source, instagram_handle, location, follower_count, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (_brand_id(), business_name, business_type, source, instagram_handle, location, follower_count, notes),
     )
     db.commit()
     return f"Lead added: '{business_name}' ({business_type})."
@@ -222,8 +229,8 @@ def db_update_lead(lead_id: int, status: str = "", outreach_message: str = "", n
     if not updates:
         return "No updates provided."
     updates.append("last_updated = CURRENT_TIMESTAMP")
-    params.append(lead_id)
-    db.execute(f"UPDATE leads SET {', '.join(updates)} WHERE id = ?", params)
+    params.extend([lead_id, _brand_id()])
+    db.execute(f"UPDATE leads SET {', '.join(updates)} WHERE id = ? AND brand_id = ?", params)
     db.commit()
     return f"Lead {lead_id} updated."
 
@@ -238,8 +245,8 @@ def db_get_analytics_summary(days: int = 7) -> str:
     """
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM analytics_snapshots ORDER BY snapshot_date DESC LIMIT ?",
-        (days,),
+        "SELECT * FROM analytics_snapshots WHERE brand_id = ? ORDER BY snapshot_date DESC LIMIT ?",
+        (_brand_id(), days),
     ).fetchall()
     if not rows:
         return "No analytics data yet."
@@ -273,10 +280,10 @@ def db_save_analytics_snapshot(
     db = get_db()
     db.execute(
         """INSERT INTO analytics_snapshots
-           (follower_count, total_posts, avg_engagement_rate, total_impressions, total_reach,
+           (brand_id, follower_count, total_posts, avg_engagement_rate, total_impressions, total_reach,
             top_post_id, top_post_engagement, insights_json, recommendations)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (follower_count, total_posts, avg_engagement_rate, total_impressions, total_reach,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (_brand_id(), follower_count, total_posts, avg_engagement_rate, total_impressions, total_reach,
          top_post_id, top_post_engagement, insights_json, recommendations),
     )
     db.commit()
@@ -310,9 +317,9 @@ def db_save_post_performance(
     db = get_db()
     db.execute(
         """INSERT INTO post_performance
-           (instagram_media_id, content_queue_id, impressions, reach, engagement, likes, comments, saves, caption_snippet)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (instagram_media_id, content_queue_id or None, impressions, reach, engagement, likes, comments, saves, caption_snippet),
+           (brand_id, instagram_media_id, content_queue_id, impressions, reach, engagement, likes, comments, saves, caption_snippet)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (_brand_id(), instagram_media_id, content_queue_id or None, impressions, reach, engagement, likes, comments, saves, caption_snippet),
     )
     db.commit()
     return f"Performance saved for post {instagram_media_id}."
@@ -326,8 +333,8 @@ def db_get_post_performance(limit: int = 10) -> str:
     """
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM post_performance ORDER BY measured_at DESC LIMIT ?",
-        (limit,),
+        "SELECT * FROM post_performance WHERE brand_id = ? ORDER BY measured_at DESC LIMIT ?",
+        (_brand_id(), limit),
     ).fetchall()
     if not rows:
         return "No post performance data yet."
@@ -354,9 +361,9 @@ def db_add_engagement_task(
     """
     db = get_db()
     db.execute(
-        """INSERT INTO engagement_tasks (target_handle, action_type, reason, suggested_comment, target_post_url)
-           VALUES (?, ?, ?, ?, ?)""",
-        (target_handle, action_type, reason, suggested_comment, target_post_url),
+        """INSERT INTO engagement_tasks (brand_id, target_handle, action_type, reason, suggested_comment, target_post_url)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (_brand_id(), target_handle, action_type, reason, suggested_comment, target_post_url),
     )
     db.commit()
     return f"Engagement task added: {action_type} on @{target_handle}."
@@ -370,16 +377,17 @@ def db_get_engagement_tasks(status: str = "pending", limit: int = 20) -> str:
         limit: Max tasks to return.
     """
     db = get_db()
+    conditions = ["brand_id = ?"]
+    params = [_brand_id()]
     if status:
-        rows = db.execute(
-            "SELECT * FROM engagement_tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-            (status, limit),
-        ).fetchall()
-    else:
-        rows = db.execute(
-            "SELECT * FROM engagement_tasks ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        conditions.append("status = ?")
+        params.append(status)
+    where = "WHERE " + " AND ".join(conditions)
+    params.append(limit)
+    rows = db.execute(
+        f"SELECT * FROM engagement_tasks {where} ORDER BY created_at DESC LIMIT ?",
+        params,
+    ).fetchall()
     if not rows:
         return f"No engagement tasks{' with status=' + status if status else ''}."
     return json.dumps([dict(r) for r in rows], indent=2, default=str)
@@ -399,8 +407,8 @@ def db_log_run(task_type: str, status: str, duration_seconds: float, summary: st
     """
     db = get_db()
     db.execute(
-        "INSERT INTO run_log (task_type, status, duration_seconds, summary, error) VALUES (?, ?, ?, ?, ?)",
-        (task_type, status, duration_seconds, summary, error),
+        "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, summary, error) VALUES (?, ?, ?, ?, ?, ?)",
+        (_brand_id(), task_type, status, duration_seconds, summary, error),
     )
     db.commit()
     return f"Run logged: {task_type} - {status}."

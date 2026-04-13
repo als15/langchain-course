@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from web import templates
 from web.db import query_one
+from web.brand_switcher import get_dashboard_brand, get_brand_context
 
 router = APIRouter()
 
@@ -16,15 +17,18 @@ router = APIRouter()
 async def system_page(request: Request):
     from web.routes.dashboard import _global_stats
 
-    # Table counts
+    brand_id = get_dashboard_brand(request)
+
+    # Table counts (filtered by brand for content tables)
     counts = await query_one(
         "SELECT "
-        "(SELECT COUNT(*) FROM content_queue) as content_count, "
-        "(SELECT COUNT(*) FROM leads) as leads_count, "
-        "(SELECT COUNT(*) FROM engagement_tasks) as engagement_count, "
-        "(SELECT COUNT(*) FROM run_log) as run_count, "
-        "(SELECT COUNT(*) FROM analytics_snapshots) as snapshot_count, "
-        "(SELECT COUNT(*) FROM post_performance) as perf_count"
+        "(SELECT COUNT(*) FROM content_queue WHERE brand_id = ?) as content_count, "
+        "(SELECT COUNT(*) FROM leads WHERE brand_id = ?) as leads_count, "
+        "(SELECT COUNT(*) FROM engagement_tasks WHERE brand_id = ?) as engagement_count, "
+        "(SELECT COUNT(*) FROM run_log WHERE brand_id = ?) as run_count, "
+        "(SELECT COUNT(*) FROM analytics_snapshots WHERE brand_id = ?) as snapshot_count, "
+        "(SELECT COUNT(*) FROM post_performance WHERE brand_id = ?) as perf_count",
+        (brand_id, brand_id, brand_id, brand_id, brand_id, brand_id),
     )
 
     # Meta token info
@@ -47,7 +51,7 @@ async def system_page(request: Request):
         "timezone": "Asia/Jerusalem",
     }
 
-    # Daemon log tail
+    # Daemon log tail (system-wide, not filtered by brand)
     log_lines = []
     log_path = Path("data/daemon.log")
     if log_path.exists():
@@ -58,7 +62,7 @@ async def system_page(request: Request):
         except Exception:
             pass
 
-    # Scheduler jobs
+    # Scheduler jobs (system-wide, not filtered by brand)
     scheduler_jobs = []
     scheduler = request.app.state.scheduler
     if scheduler:
@@ -70,7 +74,7 @@ async def system_page(request: Request):
                 "next_run": next_run.strftime("%Y-%m-%d %H:%M") if next_run else "—",
             })
 
-    stats = await _global_stats()
+    stats = await _global_stats(brand_id)
 
     return templates.TemplateResponse(request, "pages/system.html", {
         "active_page": "system",
@@ -80,4 +84,5 @@ async def system_page(request: Request):
         "sys_info": sys_info,
         "log_lines": log_lines,
         "scheduler_jobs": scheduler_jobs,
+        **get_brand_context(request),
     })
