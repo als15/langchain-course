@@ -422,14 +422,12 @@ def _register_brand_jobs(scheduler, bot, bc):
 async def main():
     # In multi-brand mode, init_brand() needs an explicit slug since
     # _resolve_slug() raises when multiple brands exist without BRAND env var.
-    # Pick the first brand as the default; load_all_brands() handles the rest.
     available = _list_brands()
     bc = init_brand(available[0] if available else None)
     os.makedirs("data", exist_ok=True)
     init_db()
     load_persisted_token()
 
-    # Load all brands for multi-brand scheduling
     all_brands = load_all_brands()
 
     log.info("=" * 50)
@@ -440,24 +438,52 @@ async def main():
     log.info(f"Database: {'Postgres' if os.environ.get('DATABASE_URL', '').startswith('postgres') else 'SQLite'}")
     log.info("=" * 50)
 
-    # Build Telegram app
-    telegram_app = build_telegram_app()
-    bot = telegram_app.bot
+    # ── Build per-brand Telegram bots ──
+    # Each brand may have its own bot token + chat_id in its .env.
+    # We deduplicate by token so brands sharing a token share one Application.
+    brand_bots = {}      # slug -> Bot
+    brand_chat_ids = {}  # slug -> chat_id
+    telegram_apps = []   # deduplicated Application list
+    _tokens_seen = {}    # token -> Application
 
-    # Set up scheduler (UTC base, per-job timezones)
+    for brand in all_brands:
+        set_brand(brand.slug)  # loads brand .env (sets TELEGRAM_BOT_TOKEN, CHAT_ID)
+        token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+        if not token:
+            log.warning(f"No TELEGRAM_BOT_TOKEN for {brand.slug}, skipping Telegram")
+            continue
+        brand_chat_ids[brand.slug] = chat_id
+        if token not in _tokens_seen:
+            app = build_telegram_app(token)
+            _tokens_seen[token] = app
+            telegram_apps.append(app)
+        brand_bots[brand.slug] = _tokens_seen[token].bot
+        log.info(f"Telegram for {brand.slug}: chat_id={chat_id[:6]}... bot={token[:10]}...")
+
+    # Restore first brand as default
+    set_brand(available[0])
+
+    # ── Scheduler ──
     scheduler = AsyncIOScheduler(timezone="UTC")
 
-    # Store scheduler ref so /health command can access it
-    telegram_app.bot_data["scheduler"] = scheduler
+    for app in telegram_apps:
+        app.bot_data["scheduler"] = scheduler
 
-    # Register jobs for each brand
+    # Register jobs for each brand with its specific bot
     for brand in all_brands:
+        bot = brand_bots.get(brand.slug)
+        if not bot:
+            log.warning(f"No Telegram bot for {brand.slug}, jobs will run without notifications")
+            continue
         log.info(f"Registering jobs for brand: {brand.slug} (tz={brand.identity.timezone})")
         _register_brand_jobs(scheduler, bot, brand)
 
-    # Health check (system-wide, not per-brand)
-    scheduler.add_job(_health_check_job, "interval", minutes=30,
-                      args=[bot, scheduler], id="health_check")
+    # Health check uses the first available bot
+    primary_bot = next(iter(brand_bots.values()), None)
+    if primary_bot:
+        scheduler.add_job(_health_check_job, "interval", minutes=30,
+                          args=[primary_bot, scheduler], id="health_check")
 
     scheduler.start()
 
@@ -465,20 +491,17 @@ async def main():
     for job in scheduler.get_jobs():
         log.info(f"  {job.id}: {job.trigger}")
 
-    # ── Start web dashboard ──
+    # ── Web dashboard ──
     import uvicorn
     from web import create_app
 
-    web_app = create_app(scheduler=scheduler, bot=bot, safe_run_fn=safe_run)
+    web_app = create_app(scheduler=scheduler, bot=primary_bot, safe_run_fn=safe_run)
     port = int(os.environ.get("PORT", 8000))
     uvi_config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="info")
     uvi_server = uvicorn.Server(uvi_config)
 
-    log.info(f"Starting web dashboard on port {port}...")
-    log.info("Starting Telegram bot polling...")
-
     async def _run_web_server():
-        """Run web server in a wrapper that won't crash the daemon on failure."""
+        """Run web server — failure won't crash the daemon."""
         try:
             await uvi_server.serve()
         except SystemExit:
@@ -488,22 +511,35 @@ async def main():
             log.error(f"Web server crashed: {e}. "
                       "Scheduler and Telegram bot will continue without the dashboard.")
 
-    # Start Telegram polling alongside the scheduler and web server
-    async with telegram_app:
-        await telegram_app.start()
-        await telegram_app.updater.start_polling()
+    log.info(f"Starting web dashboard on port {port}...")
+    log.info(f"Starting Telegram polling for {len(telegram_apps)} bot(s)...")
 
-        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
-        if chat_id:
-            brand_names = ", ".join(b.identity.name_en for b in all_brands)
-            await bot.send_message(chat_id=chat_id, text=f"Bot is online! Brands: {brand_names}")
+    # ── Start all Telegram apps ──
+    from contextlib import AsyncExitStack
 
-        # Run uvicorn as a background task (failure won't crash scheduler/bot)
+    async with AsyncExitStack() as stack:
+        for app in telegram_apps:
+            await stack.enter_async_context(app)
+            await app.start()
+            await app.updater.start_polling()
+
+        # Send per-brand online notification
+        for brand in all_brands:
+            bot = brand_bots.get(brand.slug)
+            chat_id = brand_chat_ids.get(brand.slug, "")
+            if bot and chat_id:
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=f"Bot is online! Brand: {brand.identity.name_en}",
+                    )
+                except Exception as e:
+                    log.warning(f"Failed to send online message for {brand.slug}: {e}")
+
         web_task = asyncio.create_task(_run_web_server())
 
         log.info("Daemon running. Press Ctrl+C to stop.")
 
-        # Keep running until interrupted
         stop_event = asyncio.Event()
         try:
             await stop_event.wait()
@@ -512,8 +548,9 @@ async def main():
         finally:
             uvi_server.should_exit = True
             await web_task
-            await telegram_app.updater.stop()
-            await telegram_app.stop()
+            for app in telegram_apps:
+                await app.updater.stop()
+                await app.stop()
             scheduler.shutdown()
             log.info("Daemon stopped.")
 

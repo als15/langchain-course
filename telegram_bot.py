@@ -526,9 +526,10 @@ async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Builder ──────────────────────────────────────────────────────────
 
 
-def build_telegram_app() -> Application:
+def build_telegram_app(token: str | None = None) -> Application:
     """Build the Telegram Application with all handlers."""
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    if token is None:
+        token = os.environ["TELEGRAM_BOT_TOKEN"]
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start_command))
