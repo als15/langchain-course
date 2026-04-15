@@ -40,13 +40,10 @@ STORIES vs FEED POSTS:
   Stories use shorter captions (1-2 lines max) and can be more playful.
 
 FEED VARIETY — TEXTURE BREAKERS (MANDATORY):
-- NOT every post should be a finished dish. The feed needs visual rhythm and variety.
-- Each week MUST include at least {bc.content_strategy.texture_breakers_per_week} non-dish items across the posts (feed + stories combined).
-- Use items from "Texture & Process Breakers" category: fruit shakes, single fruits/vegetables,
-  raw dough, baker at work, oven shots, ingredients (eggs, butter, olive oil, honey, seeds).
-- These break the "dish after dish" monotony and make the feed feel alive and authentic.
-- Great for stories: a baker kneading dough, honey drizzle, fresh herbs — these feel real.
-- Great for feed posts too: a single pomegranate or olive oil pour can be a stunning hero shot.
+- NOT every post should be a close-up product shot. The feed needs visual rhythm and variety.
+- Each week MUST include at least {bc.content_strategy.texture_breakers_per_week} non-product items across the posts (feed + stories combined).
+- Look for lifestyle, vibe, behind-the-scenes, or detail categories in the menu list below.
+- These break the monotony and make the feed feel alive and authentic.
 - Mix them naturally into the week — don't cluster them all on one day.
 
 CONTENT PILLARS (rotate through these):
@@ -69,15 +66,15 @@ hashtags (separately), and visual_direction (exact dish/vibe name from the menu)
 VISUAL DIRECTION — CRITICAL RULES:
 - The visual_direction field MUST be one of the exact names from the menu list below.
   Do NOT write free-form descriptions. Do NOT describe scenes, videos, or graphics.
-  Just use the dish or vibe name exactly as listed (e.g. "Smoked Salmon", "Morning pastry counter").
+  Just use the item or vibe name exactly as listed in the menu below.
 - The image generator will look up the expert-crafted prompt for that name automatically.
-- For stories, use items from "Vibe Images" or "Optional Coffee Extras" categories.
-- For feed posts, use items from food categories (Sandwiches, Salads, Pastries, Cookies, Cakes).
-- NEVER use the same visual_direction twice in one week. Every post must feature a DIFFERENT dish or vibe.
-- Spread across at least 4 different categories (e.g. don't put 3 sandwiches in one week).
+- ONLY use names that appear in the AVAILABLE MENU ITEMS list below. If a name is not listed, do NOT use it.
+- For stories, prefer lifestyle, vibe, or behind-the-scenes categories from the menu.
+- For feed posts, prefer hero product categories from the menu.
+- NEVER use the same visual_direction twice in one week. Every post must feature a DIFFERENT item.
+- Spread across at least 4 different categories from the menu list.
 - Check the existing queue first and avoid any visual_direction that's already there.
-- PASTRY VARIETY IS CRITICAL: Do NOT default to croissants. The menu has a rich range of pastries.
-  Rotate through them. If a croissant was featured in the last 2 weeks, pick something else.
+- VARIETY IS CRITICAL: Rotate through different items. Do NOT repeat the same type of item every week.
 
 AVAILABLE MENU ITEMS (use these EXACT names for visual_direction):
 {menu_items}

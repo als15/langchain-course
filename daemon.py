@@ -244,6 +244,24 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
             await notify_error(bot, task_type, f"Task timed out after {timeout}s")
     except Exception as e:
         log.error(f"Failed {task_type}: {e}")
+        try:
+            db = get_db()
+            error_cat = "unknown"
+            err_str = str(e).lower()
+            if "401" in err_str or "unauthorized" in err_str or "token" in err_str:
+                error_cat = "auth_error"
+            elif "timeout" in err_str or "timed out" in err_str:
+                error_cat = "timeout"
+            elif "database" in err_str or "connection" in err_str:
+                error_cat = "db_error"
+            db.execute(
+                "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, error, error_category) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (brand_config.slug, task_type, "failed", 0, str(e)[:500], error_cat),
+            )
+            db.commit()
+        except Exception:
+            log.error(f"Failed to log error for {task_type} to run_log")
         if chat_id:
             await notify_error(bot, task_type, str(e))
 
@@ -455,6 +473,17 @@ async def main():
     log.info(f"Starting web dashboard on port {port}...")
     log.info("Starting Telegram bot polling...")
 
+    async def _run_web_server():
+        """Run web server in a wrapper that won't crash the daemon on failure."""
+        try:
+            await uvi_server.serve()
+        except SystemExit:
+            log.error(f"Web server failed to start on port {port} (port in use?). "
+                      "Scheduler and Telegram bot will continue without the dashboard.")
+        except Exception as e:
+            log.error(f"Web server crashed: {e}. "
+                      "Scheduler and Telegram bot will continue without the dashboard.")
+
     # Start Telegram polling alongside the scheduler and web server
     async with telegram_app:
         await telegram_app.start()
@@ -465,8 +494,8 @@ async def main():
             brand_names = ", ".join(b.identity.name_en for b in all_brands)
             await bot.send_message(chat_id=chat_id, text=f"Bot is online! Brands: {brand_names}")
 
-        # Run uvicorn as a background task
-        web_task = asyncio.create_task(uvi_server.serve())
+        # Run uvicorn as a background task (failure won't crash scheduler/bot)
+        web_task = asyncio.create_task(_run_web_server())
 
         log.info("Daemon running. Press Ctrl+C to stop.")
 

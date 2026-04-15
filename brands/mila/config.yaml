@@ -1,78 +1,116 @@
-# Brand Configuration Template
-# Copy this directory to brands/<your-brand-slug>/ and fill in your values.
-# Then run: python main.py --brand <your-brand-slug> content
+# Brand Configuration for Mila
 
 identity:
-  name: ""                    # Brand name in primary language (e.g. "My Bakery")
-  name_en: ""                 # Brand name in English
-  language: "en"              # Content language code (en, he, ar, es, etc.)
-  timezone: "UTC"             # IANA timezone (e.g. "America/New_York", "Asia/Jerusalem")
-  market: ""                  # Target market/country (e.g. "United States", "Israel")
-  business_type: ""           # What you do (e.g. "B2B sandwich supplier", "artisan bakery")
-  target_audience: ""         # Who you serve (e.g. "food trucks, coffee shops")
+  name: 'Mila'
+  name_en: 'Mila'
+  language: 'he'
+  timezone: 'Asia/Jerusalem'
+  market: 'Israel'
+  business_type: 'Boutique ice cream truck and weekend gelato stand'
+  target_audience: 'Families, young parents, kids, couples, neighborhood visitors in Herzliya, and hosts looking for a stylish dessert truck for events.'
 
 voice:
-  tone: ""                    # Describe your brand's tone of voice
-  caption_style: ""           # Rules for writing captions (language, length, emoji usage)
-  caption_examples:           # 2-3 example captions in YOUR tone
-    - ""
-    - ""
-  bad_caption_examples:       # 2-3 examples of what NOT to write
-    - ""
-  hashtags_default:           # Default hashtags to include
-    - ""
+  tone: 'Warm, playful, polished, and local. Boutique but approachable. קצת איטלקית, הרבה ישראלית.'
+  caption_style: 'Hebrew-first captions. Short to medium length. 1-2 short sentences. Use 0-2 emojis max. Sensory and inviting. Mention place, timing, or weekend energy when relevant. Keep it friendly and design-aware, never pushy or generic.'
+  caption_examples:
+    - 'שישי שמשי בגליל ים, ואנחנו מוכנים עם הגביעים הכי יפים בעיר 🍦'
+    - 'פיסטוק, וניל, ורגע קטן של קיץ מול המשאית של Mila. מחכים לכם היום אחר הצהריים.'
+    - 'קצת מתוק, קצת קייצי, והרבה לב. נתראה ליד המשאית.'
+  bad_caption_examples:
+    - 'המוצר הטוב ביותר במחיר מטורף!!! בואו עכשיו לפני שייגמר!!!'
+    - 'עוד פוסט גנרי על גלידה בלי מקום, זמן, או אופי.'
+    - "יותר מדי אימוג'ים, יותר מדי סלנג, ופחות מדי מותג 🤪🔥💯🍦🎉"
+  hashtags_default:
+    - '#Mila'
+    - '#מילה'
+    - '#גלידה'
+    - '#גלידת_בוטיק'
+    - '#גליל_ים'
+    - '#הרצליה'
+    - '#icecreamtruck'
+    - '#gelato'
 
 visual:
-  style_description: ""       # Describe your visual identity
-  image_base_prompt: ""       # Base prompt for AI image generation (photography style)
-  image_negative_prompt: ""   # What to avoid in generated images
-  bg_objects:                 # Props/objects for image backgrounds
-    - ""
-  bg_colors:                  # Color tones for image backgrounds
-    - ""
-  color_palette:              # Brand colors (hex codes)
-    primary: "#000000"
-    secondary: "#666666"
+  style_description: 'Graphic minimalism, solid pastel backdrops, centered composition, and soft diffused lighting.'
+  image_base_prompt: >
+    Aesthetic minimalist photography for Mila ice cream. A single hand holding a
+    perfectly styled cone centered in frame. Solid flat pastel background
+    (blush pink or sky blue). Soft diffused high-key lighting, minimal shadows,
+    clean matte textures. Modern boutique brand vibe, graphic composition,
+    8k resolution, professional food styling.
+  image_negative_prompt: >
+    No busy backgrounds, no street scenes, no bokeh, no harsh sunlight,
+    no dark shadows, no messy melting, no blurred trucks, no cluttered props,
+    no realistic street grit.
+  bg_objects:
+    - 'white branded ice cream truck'
+    - 'waffle cones'
+    - 'pastel scoops'
+    - 'sprinkles'
+    - 'paper cups'
+    - 'hands holding cones'
+    - 'sunlit pavement'
+  bg_colors:
+    - 'white'
+    - 'sky blue'
+    - 'blush pink'
+    - 'cream yellow'
+    - 'cone beige'
+    - 'soft navy'
+  color_palette:
+    primary: '#1B3A5C'
+    secondary: '#F97316'
 
 content_strategy:
-  weekly_feed_posts: 5        # Feed posts per week
-  weekly_stories: 7           # Stories per week
-  max_posts_per_day: 1        # Max feed posts published per day
-  max_stories_per_day: 2      # Max stories published per day
-  content_pillars:            # Content categories to rotate through
-    - product
-    - behind_scenes
-    - customer_spotlight
-  feed_post_times: ["07:00", "12:00"]
-  story_time: "09:00"
+  weekly_feed_posts: 5
+  weekly_stories: 7
+  max_posts_per_day: 1
+  max_stories_per_day: 4
+  content_pillars:
+    - 'product'
+    - 'truck_vibes'
+    - 'weekend_updates'
+    - 'behind_scenes'
+    - 'customer_moments'
+  feed_post_times: ['10:30', '16:30', '19:30']
+  story_time: '10:00'
   texture_breakers_per_week: 2
 
 schedule:
-  planning_day: "mon"         # Day of week for content planning (mon, tue, etc.)
-  culinary_review_hour: 6
-  culinary_review_minute: 30
-  planning_hour: 7
-  design_review_hour: 8
-  image_generation_hour: 9
-  publish_hours: "6,8,10,12,14,16,18,20"
-  analytics_hour: 18
-  content_review_hour: 19
-  engagement_days: "tue,thu"
-  engagement_hour: 10
-  lead_gen_day: "wed"
-  lead_gen_hour: 10
+  planning_day: 'wed'
+  culinary_review_hour: 10
+  culinary_review_minute: 0
+  planning_hour: 11
+  design_review_hour: 12
+  image_generation_hour: 13
+  publish_hours: '10,12,16,18,20'
+  analytics_hour: 21
+  content_review_hour: 20
+  engagement_days: 'thu,sat'
+  engagement_hour: 18
+  lead_gen_day: 'sun'
+  lead_gen_hour: 11
   token_refresh_days: 50
   health_check_minutes: 30
 
 lead_generation:
-  target_customers:           # Types of businesses you want as customers
-    - ""
-  search_cities:              # Cities to search for leads
-    - ""
+  target_customers:
+    - 'Private events and birthdays'
+    - 'Community and neighborhood events'
+    - 'Schools and kindergartens'
+    - 'Corporate family days and summer events'
+    - 'Real-estate, launch, and community activations'
+  search_cities:
+    - 'Herzliya'
+    - 'Tel Aviv'
+    - 'Ramat HaSharon'
+    - "Ra'anana"
+    - 'Kfar Saba'
+    - 'Netanya'
 
 seasonal_calendar:
-  winter: ""                  # What content works in winter
-  spring: ""                  # What content works in spring
-  summer: ""                  # What content works in summer
-  fall: ""                    # What content works in fall
-  weekly_rhythm: ""           # Weekly patterns (e.g. prep days, busy days)
+  winter: 'Focus on sunny winter weekends, warm waffle textures, cozy family treat moments, and bright midday service rather than beach energy.'
+  spring: 'Use pastel-forward visuals, family outings, holiday weekends, neighborhood lifestyle, and fresh light seasonal color stories.'
+  summer: 'Peak season. Prioritize hero cones, truck exterior shots, golden hour queues, cold refreshment messaging, and energetic weekend content.'
+  fall: 'Shift to softer sun, back-to-routine treats, Friday family stops, pistachio and caramel tones, and calmer neighborhood storytelling.'
+  weekly_rhythm: 'Plan on Wednesday, tease menu and location on Thursday, publish live stories and hero content on Friday-Saturday, and recap or repost UGC on Sunday.'
