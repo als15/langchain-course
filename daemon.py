@@ -12,7 +12,8 @@ from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from brands.loader import init_brand, brand_config, set_brand, load_all_brands, _list_brands
+import brands.loader
+from brands.loader import init_brand, set_brand, load_all_brands, _list_brands
 from db.schema import init_db
 from db.connection import get_db
 from graph.orchestrator import run_task
@@ -65,20 +66,20 @@ def _dependency_met(task_type: str) -> tuple[bool, str]:
 
     from zoneinfo import ZoneInfo
     from db.connection import _is_postgres
-    today = datetime.now(ZoneInfo(brand_config.identity.timezone)).strftime("%Y-%m-%d")
+    today = datetime.now(ZoneInfo(brands.loader.brand_config.identity.timezone)).strftime("%Y-%m-%d")
 
     db = get_db()
     if _is_postgres():
         row = db.execute(
             "SELECT status FROM run_log WHERE task_type = %s AND brand_id = %s "
             "AND started_at::date = %s::date ORDER BY started_at DESC LIMIT 1",
-            (dep, brand_config.slug, today),
+            (dep, brands.loader.brand_config.slug, today),
         ).fetchone()
     else:
         row = db.execute(
             "SELECT status FROM run_log WHERE task_type = ? AND brand_id = ? "
             "AND date(started_at) = ? ORDER BY started_at DESC LIMIT 1",
-            (dep, brand_config.slug, today),
+            (dep, brands.loader.brand_config.slug, today),
         ).fetchone()
 
     if not row:
@@ -91,7 +92,7 @@ def _dependency_met(task_type: str) -> tuple[bool, str]:
 def _has_publishable_content(task_type: str) -> bool:
     """Check if there are approved posts ready to publish for the given task type."""
     from zoneinfo import ZoneInfo
-    now_il = datetime.now(ZoneInfo(brand_config.identity.timezone))
+    now_il = datetime.now(ZoneInfo(brands.loader.brand_config.identity.timezone))
     today = now_il.strftime("%Y-%m-%d")
     now_time = now_il.strftime("%H:%M")
 
@@ -101,7 +102,7 @@ def _has_publishable_content(task_type: str) -> bool:
         "SELECT COUNT(*) as cnt FROM content_queue "
         "WHERE status = 'approved' AND content_type = ? AND brand_id = ? AND image_url IS NOT NULL "
         "AND (scheduled_date < ? OR (scheduled_date = ? AND scheduled_time <= ?))",
-        (content_type, brand_config.slug, today, today, now_time),
+        (content_type, brands.loader.brand_config.slug, today, today, now_time),
     ).fetchone()
     return row["cnt"] > 0
 
@@ -109,8 +110,8 @@ def _has_publishable_content(task_type: str) -> bool:
 def _skip_reason(content_type: str) -> str:
     """Diagnose why there's nothing to publish — returns a human-readable reason."""
     from zoneinfo import ZoneInfo
-    bid = brand_config.slug
-    now_il = datetime.now(ZoneInfo(brand_config.identity.timezone))
+    bid = brands.loader.brand_config.slug
+    now_il = datetime.now(ZoneInfo(brands.loader.brand_config.identity.timezone))
     today = now_il.strftime("%Y-%m-%d")
     now_time = now_il.strftime("%H:%M")
 
@@ -170,7 +171,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
         db.execute(
             "UPDATE content_queue SET status = 'approved' "
             "WHERE status = 'failed' AND content_type = ? AND brand_id = ? AND retry_count < 3",
-            (content_type, brand_config.slug),
+            (content_type, brands.loader.brand_config.slug),
         )
         db.commit()
 
@@ -182,7 +183,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
         reason = _skip_reason(content_type)
         db.execute(
             "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, summary) VALUES (?, ?, ?, ?, ?)",
-            (brand_config.slug, task_type, "skipped", 0, reason),
+            (brands.loader.brand_config.slug, task_type, "skipped", 0, reason),
         )
         db.commit()
         return
@@ -194,7 +195,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
         db = get_db()
         db.execute(
             "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, summary) VALUES (?, ?, ?, ?, ?)",
-            (brand_config.slug, task_type, "skipped", 0, dep_reason),
+            (brands.loader.brand_config.slug, task_type, "skipped", 0, dep_reason),
         )
         db.commit()
         if chat_id:
@@ -226,7 +227,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
             drafts = db.execute(
                 "SELECT COUNT(*) as cnt FROM content_queue "
                 "WHERE status = 'draft' AND brand_id = ? AND visual_direction IS NOT NULL AND image_url IS NULL",
-                (brand_config.slug,),
+                (brands.loader.brand_config.slug,),
             ).fetchone()
             if drafts["cnt"] > 0:
                 log.info(f"Content review revised {drafts['cnt']} posts, triggering image generation...")
@@ -237,7 +238,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
         db = get_db()
         db.execute(
             "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, error) VALUES (?, ?, ?, ?, ?)",
-            (brand_config.slug, task_type, "timeout", timeout, f"Task exceeded {timeout}s timeout"),
+            (brands.loader.brand_config.slug, task_type, "timeout", timeout, f"Task exceeded {timeout}s timeout"),
         )
         db.commit()
         if chat_id:
@@ -257,7 +258,7 @@ async def safe_run(task_type: str, bot, brand_slug: str | None = None):
             db.execute(
                 "INSERT INTO run_log (brand_id, task_type, status, duration_seconds, error, error_category) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (brand_config.slug, task_type, "failed", 0, str(e)[:500], error_cat),
+                (brands.loader.brand_config.slug, task_type, "failed", 0, str(e)[:500], error_cat),
             )
             db.commit()
         except Exception:
@@ -272,7 +273,7 @@ async def _send_pending_approvals(bot):
     rows = db.execute(
         "SELECT id, topic, caption, image_url FROM content_queue "
         "WHERE status = 'pending_approval' AND brand_id = ? AND image_url IS NOT NULL",
-        (brand_config.slug,),
+        (brands.loader.brand_config.slug,),
     ).fetchall()
 
     for row in rows:
