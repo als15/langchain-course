@@ -87,11 +87,12 @@ async def logout():
 
 @router.get("/health")
 async def health(request: Request):
+    """Liveness check for Railway. Always returns 200 if the server is up.
+    Detailed status is in the response body for monitoring."""
     import asyncio
     from health import run_all_checks
+    from fastapi.responses import JSONResponse
     loop = asyncio.get_event_loop()
     scheduler = getattr(request.app.state, "scheduler", None)
     result = await loop.run_in_executor(None, run_all_checks, scheduler)
-    status_code = 200 if result["healthy"] else 503
-    from fastapi.responses import JSONResponse
-    return JSONResponse(result, status_code=status_code)
+    return JSONResponse(result, status_code=200)
