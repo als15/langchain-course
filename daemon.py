@@ -346,6 +346,14 @@ async def _health_check_job(bot, scheduler):
             failures = [f"- {k}: {v[1]}" for k, v in result["checks"].items() if not v[0]]
             text = "HEALTH CHECK ALERT\n\n" + "\n".join(failures)
             await bot.send_message(chat_id=chat_id, text=text)
+
+        # Dead man's switch: ping external monitor so it knows we're alive.
+        # If pings stop, the external service alerts via Telegram.
+        ping_url = os.environ.get("HEALTHCHECK_PING_URL")
+        if ping_url:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                await client.get(ping_url, timeout=10)
     except Exception as e:
         log.error(f"Health check failed: {e}")
 
