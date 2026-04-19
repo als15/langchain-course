@@ -1,4 +1,4 @@
-"""Telegram bot for Capa & Co Instagram agent notifications and approvals."""
+"""Telegram bot for multi-brand Instagram agent notifications and approvals."""
 
 import os
 import logging
@@ -12,9 +12,22 @@ from telegram.ext import (
     filters,
 )
 
+import brands.loader as _brand_loader
 from db.connection import get_db
 
 log = logging.getLogger("capaco")
+
+
+def _activate_brand_for_handler(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Switch the global brand_config to the brand this Application belongs to.
+
+    Each Telegram Application is tagged with ``bot_data["brand_slug"]`` in
+    daemon.py, so a handler can resolve which brand's data, credentials, and
+    voice it should use regardless of which bot received the update.
+    """
+    slug = context.application.bot_data.get("brand_slug")
+    if slug and _brand_loader.brand_config.slug != slug:
+        _brand_loader.set_brand(slug)
 
 
 def _authorized(update: Update) -> bool:
@@ -34,11 +47,13 @@ def _chat_id() -> str:
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         await update.message.reply_text("Unauthorized.")
         return
+    brand_name = _brand_loader.brand_config.identity.name_en or _brand_loader.brand_config.slug
     await update.message.reply_text(
-        "Capa & Co Instagram Bot\n\n"
+        f"{brand_name} Instagram Bot\n\n"
         "Commands:\n"
         "/status - Account stats & recent runs\n"
         "/queue - Content queue overview\n"
@@ -50,6 +65,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
     db = get_db()
@@ -76,6 +92,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def queue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
     db = get_db()
@@ -98,6 +115,7 @@ async def queue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def leads_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
     db = get_db()
@@ -114,6 +132,7 @@ async def leads_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def engage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
     db = get_db()
@@ -138,6 +157,7 @@ async def engage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle approve/reject button presses."""
+    _activate_brand_for_handler(context)
     query = update.callback_query
     await query.answer()
 
@@ -292,6 +312,7 @@ async def approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages for caption edits and directed regens."""
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
 
@@ -397,25 +418,41 @@ async def _handle_directed_regen(update: Update, context: ContextTypes.DEFAULT_T
 
 
 def _generate_caption(direction: str, content_pillar: str) -> str:
-    """Generate a Hebrew caption for a given visual direction using the LLM."""
+    """Generate a caption for a given visual direction using the active brand's voice."""
     from config import get_llm
 
+    bc = _brand_loader.brand_config
+    name = bc.identity.name
+    name_en = bc.identity.name_en or name
+    brand_label = f"{name_en} ({name})" if name and name_en and name != name_en else (name_en or name)
+    language = bc.identity.language or "native"
+    caption_examples = "\n".join(f"- {ex}" for ex in bc.voice.caption_examples) or "(no examples configured)"
+    hashtag_hint = ", ".join(bc.voice.hashtags_default[:5]) if bc.voice.hashtags_default else ""
+    tone = bc.voice.tone or ""
+    business_type = bc.identity.business_type or ""
+
     llm = get_llm(temperature=0.7)
-    prompt = (
-        "You write Instagram captions for Capa & Co (קאפה אנד קו), an Israeli bakery.\n\n"
-        "Rules:\n"
-        "- Write in native Israeli Hebrew. Not translated. Not corporate.\n"
-        "- Short and playful — one line is best, max 2 short sentences.\n"
-        "- The caption MUST be specifically about the dish/image described below.\n"
-        "- Add 3-5 hashtags at the end (mix Hebrew and English).\n"
-        "- Emojis: max one, only if natural.\n\n"
-        "Examples of good captions:\n"
-        '- "אפשר להריח את החמאה דרך הטלפון :) #קאפהאנדקו #croissant #בייקרי"\n'
-        '- "כריך שהוא מעט יווני והמון ישראלי #קאפהאנדקו #halloumi #כריכים"\n\n'
-        f"Content pillar: {content_pillar}\n"
-        f"Visual direction: {direction}\n\n"
-        "Write ONLY the caption. Nothing else."
-    )
+    lines = [f"You write Instagram captions for {brand_label}" + (f", {business_type}." if business_type else "."), ""]
+    lines.append("Rules:")
+    lines.append(f"- Write in native {language}. Not translated. Not corporate.")
+    if tone:
+        lines.append(f"- Tone: {tone}")
+    lines.append("- Short and playful — one line is best, max 2 short sentences.")
+    lines.append("- The caption MUST be specifically about the dish/image described below.")
+    hashtag_rule = "- Add 3-5 hashtags at the end."
+    if hashtag_hint:
+        hashtag_rule += f" Use the brand's voice — e.g. {hashtag_hint}."
+    lines.append(hashtag_rule)
+    lines.append("- Emojis: max one, only if natural.")
+    lines.append("")
+    lines.append("Examples of good captions:")
+    lines.append(caption_examples)
+    lines.append("")
+    lines.append(f"Content pillar: {content_pillar}")
+    lines.append(f"Visual direction: {direction}")
+    lines.append("")
+    lines.append("Write ONLY the caption. Nothing else.")
+    prompt = "\n".join(lines)
     response = llm.invoke(prompt)
     return response.content.strip()
 
@@ -504,6 +541,7 @@ async def notify_publish_failure(bot: Bot, post_id: int, topic: str):
 
 async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Run health checks and report to user."""
+    _activate_brand_for_handler(context)
     if not _authorized(update):
         return
     try:

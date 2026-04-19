@@ -24,8 +24,9 @@ def get_dashboard_brand(request: Request) -> str:
     available = getattr(request.app.state, "available_brands", [])
     if slug and slug in available:
         return slug
-    # Default to first available brand
-    return available[0] if available else "capa-co"
+    if not available:
+        raise RuntimeError("No brands available — app.state.available_brands is empty")
+    return available[0]
 
 
 def get_brand_context(request: Request) -> dict:

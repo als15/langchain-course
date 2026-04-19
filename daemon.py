@@ -465,8 +465,16 @@ async def main():
         brand_chat_ids[brand.slug] = chat_id
         if token not in _tokens_seen:
             app = build_telegram_app(token)
+            app.bot_data["brand_slug"] = brand.slug
             _tokens_seen[token] = app
             telegram_apps.append(app)
+        else:
+            # Two brands sharing a token collapse to the first one's context.
+            log.warning(
+                f"{brand.slug} shares a Telegram token with "
+                f"{_tokens_seen[token].bot_data.get('brand_slug')} — "
+                "handler responses will reflect only the first brand."
+            )
         brand_bots[brand.slug] = _tokens_seen[token].bot
         log.info(f"Telegram for {brand.slug}: chat_id={chat_id[:6]}... bot={token[:10]}...")
 
@@ -504,7 +512,7 @@ async def main():
     import uvicorn
     from web import create_app
 
-    web_app = create_app(scheduler=scheduler, bot=primary_bot, safe_run_fn=safe_run)
+    web_app = create_app(scheduler=scheduler, bot=primary_bot, safe_run_fn=safe_run, brand_bots=brand_bots)
     port = int(os.environ.get("PORT", 8000))
     uvi_config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="info")
     uvi_server = uvicorn.Server(uvi_config)
