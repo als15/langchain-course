@@ -79,24 +79,24 @@ content_strategy:
     - 'weekend_updates'
     - 'behind_scenes'
     - 'customer_moments'
-  feed_post_times: ['10:30', '16:30', '19:30']
-  story_time: '10:00'
+  feed_post_times: ["07:00", "12:00"]
+  story_time: "09:00"
   texture_breakers_per_week: 2
 
 schedule:
-  planning_day: 'wed'
-  culinary_review_hour: 10
-  culinary_review_minute: 0
-  planning_hour: 11
-  design_review_hour: 12
-  image_generation_hour: 13
-  publish_hours: '10,12,16,18,20'
-  analytics_hour: 21
-  content_review_hour: 20
-  engagement_days: 'thu,sat'
-  engagement_hour: 18
-  lead_gen_day: 'sun'
-  lead_gen_hour: 11
+  planning_day: "sun"
+  culinary_review_hour: 6
+  culinary_review_minute: 30
+  planning_hour: 7
+  design_review_hour: 8
+  image_generation_hour: 9
+  publish_hours: "6,8,10,12,14,16,18,20"
+  analytics_hour: 18
+  content_review_hour: 19
+  engagement_days: "tue,thu"
+  engagement_hour: 10
+  lead_gen_day: "wed"
+  lead_gen_hour: 10
   token_refresh_days: 50
   health_check_minutes: 30
 
@@ -120,4 +120,4 @@ seasonal_calendar:
   spring: 'Use pastel-forward visuals, family outings, holiday weekends, neighborhood lifestyle, and fresh light seasonal color stories.'
   summer: 'Peak season. Prioritize hero cones, truck exterior shots, golden hour queues, cold refreshment messaging, and energetic weekend content.'
   fall: 'Shift to softer sun, back-to-routine treats, Friday family stops, pistachio and caramel tones, and calmer neighborhood storytelling.'
-  weekly_rhythm: 'Plan on Wednesday, tease menu and location on Thursday, publish live stories and hero content on Friday-Saturday, and recap or repost UGC on Sunday.'
+  weekly_rhythm: 'Plan on Sunday, tease menu and location early in the week, publish live stories and hero content on Friday-Saturday, and recap or repost UGC on Sunday.'

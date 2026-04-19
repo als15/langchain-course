@@ -1,82 +1,754 @@
 {% extends "base.html" %}
 {% block title %}Schedule{% endblock %}
 
-{% block content %}
-<h1 class="page-title">Schedule</h1>
+{% block head %}
+<style>
+    .schedule-shell {
+        display: grid;
+        gap: 18px;
+    }
 
-<!-- Scheduled Jobs -->
-<div class="section-label">Scheduled Jobs</div>
-<div class="card mb-6">
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Task</th>
-                    <th>Schedule</th>
-                    <th>Next Run</th>
-                    <th>Last Success</th>
-                    <th>Last Failure</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for job in schedule %}
-                <tr>
-                    <td class="text-sm" style="font-weight:500">{{ job.label }}</td>
-                    <td class="text-sm text-muted">{{ job.cron }}</td>
-                    <td class="text-sm">{{ next_runs.get(job.task, '—') }}</td>
-                    <td class="text-sm">
-                        {% if job.last_success %}
-                        <span style="color:var(--brand-green)">{{ job.last_success | datefmt }}</span>
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-sm">
-                        {% if job.last_failure %}
-                        <span style="color:var(--status-failed)">{{ job.last_failure | datefmt }}</span>
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="btn btn-secondary btn-xs"
+    .schedule-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 20px;
+        background:
+            radial-gradient(circle at top right, rgba(212, 168, 67, 0.08), transparent 34%),
+            linear-gradient(180deg, #f8f5ee 0%, #f2ece2 100%);
+        color: var(--dark);
+        border: 1px solid rgba(26, 26, 24, 0.06);
+        box-shadow: 0 12px 30px rgba(43, 48, 37, 0.05);
+    }
+
+    .schedule-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -40px -40px auto;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.45);
+        filter: blur(10px);
+    }
+
+    .schedule-hero-grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
+        gap: 18px;
+        align-items: end;
+        z-index: 1;
+    }
+
+    .schedule-kicker {
+        margin: 0 0 6px;
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(26, 26, 24, 0.46);
+    }
+
+    .schedule-title {
+        margin: 0;
+        max-width: 12ch;
+        font-family: var(--font-serif);
+        font-size: clamp(28px, 3.4vw, 40px);
+        line-height: 1.02;
+    }
+
+    .schedule-intro {
+        max-width: 56ch;
+        margin: 10px 0 0;
+        font-size: 13px;
+        line-height: 1.55;
+        color: rgba(26, 26, 24, 0.68);
+    }
+
+    .schedule-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .schedule-metric {
+        padding: 10px 12px;
+        border: 1px solid rgba(26, 26, 24, 0.05);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.55);
+    }
+
+    .schedule-metric-label {
+        display: block;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(26, 26, 24, 0.46);
+    }
+
+    .schedule-metric-value {
+        display: block;
+        margin-top: 4px;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .schedule-metric-note {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: rgba(26, 26, 24, 0.56);
+    }
+
+    .schedule-focus-card {
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(26, 26, 24, 0.05);
+    }
+
+    .schedule-focus-label {
+        margin: 0;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(26, 26, 24, 0.42);
+    }
+
+    .schedule-focus-value {
+        margin: 10px 0 0;
+        font-family: var(--font-serif);
+        font-size: 22px;
+        line-height: 1.15;
+    }
+
+    .schedule-focus-copy {
+        margin: 8px 0 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: rgba(26, 26, 24, 0.62);
+    }
+
+    .schedule-focus-list {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .schedule-focus-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(26, 26, 24, 0.08);
+        font-size: 12px;
+        color: rgba(26, 26, 24, 0.64);
+    }
+
+    .schedule-board {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    .schedule-panel {
+        border-radius: 18px;
+        padding: 18px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #f8f4ec);
+        border: 1px solid rgba(26, 26, 24, 0.06);
+        box-shadow: 0 10px 28px rgba(43, 48, 37, 0.05);
+    }
+
+    .schedule-panel-dark {
+        background: linear-gradient(180deg, #fbf8f1 0%, #f3ede3 100%);
+        color: var(--dark);
+    }
+
+    .schedule-section-label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--gray-text);
+    }
+
+    .schedule-panel-dark .schedule-section-label {
+        color: rgba(26, 26, 24, 0.42);
+    }
+
+    .schedule-section-title {
+        margin: 0;
+        font-family: var(--font-serif);
+        font-size: 21px;
+        line-height: 1.15;
+    }
+
+    .schedule-section-copy {
+        margin: 6px 0 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--gray-text);
+    }
+
+    .schedule-panel-dark .schedule-section-copy {
+        color: rgba(26, 26, 24, 0.62);
+    }
+
+    .schedule-job-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .schedule-job-card {
+        position: relative;
+        display: grid;
+        gap: 12px;
+        min-height: 0;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fffdfa;
+        border: 1px solid rgba(26, 26, 24, 0.06);
+        box-shadow: 0 4px 14px rgba(43, 48, 37, 0.03);
+    }
+
+    .schedule-job-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        border-radius: 16px 0 0 16px;
+        background: rgba(91, 141, 184, 0.28);
+    }
+
+    .schedule-job-card.is-success::before {
+        background: rgba(74, 93, 58, 0.48);
+    }
+
+    .schedule-job-card.is-failure::before {
+        background: rgba(184, 91, 91, 0.56);
+    }
+
+    .schedule-job-card.is-upcoming::before {
+        background: rgba(212, 168, 67, 0.6);
+    }
+
+    .schedule-job-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .schedule-job-title {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.2;
+    }
+
+    .schedule-job-cron {
+        margin-top: 4px;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--gray-text);
+    }
+
+    .schedule-job-state {
+        padding: 5px 8px;
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .schedule-job-state.is-success {
+        background: rgba(74, 93, 58, 0.12);
+        color: #435238;
+    }
+
+    .schedule-job-state.is-failure {
+        background: rgba(184, 91, 91, 0.12);
+        color: #8e3f3f;
+    }
+
+    .schedule-job-state.is-upcoming {
+        background: rgba(212, 168, 67, 0.14);
+        color: #906f26;
+    }
+
+    .schedule-job-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .schedule-job-meta-block {
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(31, 49, 40, 0.04);
+    }
+
+    .schedule-job-meta-label {
+        display: block;
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--gray-text);
+    }
+
+    .schedule-job-meta-value {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--dark);
+        word-break: break-word;
+    }
+
+    .schedule-job-meta-value.is-empty {
+        color: rgba(106, 106, 104, 0.68);
+        font-weight: 500;
+    }
+
+    .schedule-job-actions {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .schedule-run-button {
+        min-width: 92px;
+        font-size: 12px;
+    }
+
+    .schedule-run-status {
+        min-height: 44px;
+    }
+
+    .cascade-trigger {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .cascade-trigger .run-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .cascade-hint {
+        font-size: 11px;
+        color: rgba(26, 26, 24, 0.58);
+    }
+
+    .schedule-aside-stack {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .schedule-aside-card {
+        padding: 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.62);
+        border: 1px solid rgba(26, 26, 24, 0.05);
+    }
+
+    .schedule-aside-card strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 13px;
+    }
+
+    .schedule-aside-card p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: rgba(26, 26, 24, 0.62);
+    }
+
+    .schedule-aside-list {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .schedule-aside-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(26, 26, 24, 0.08);
+        font-size: 12px;
+    }
+
+    .schedule-aside-list li:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+
+    .schedule-aside-key {
+        color: rgba(26, 26, 24, 0.46);
+    }
+
+    .schedule-aside-value {
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .schedule-upcoming-rail {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .schedule-upcoming-card {
+        display: grid;
+        gap: 8px;
+        min-height: 100%;
+        padding: 10px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #fefcf8 0%, #f6f0e7 100%);
+        border: 1px solid rgba(26, 26, 24, 0.06);
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .schedule-upcoming-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(43, 48, 37, 0.06);
+    }
+
+    .schedule-upcoming-media {
+        position: relative;
+        overflow: hidden;
+        aspect-ratio: 1 / 1;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(74, 93, 58, 0.14), rgba(212, 168, 67, 0.18));
+    }
+
+    .schedule-upcoming-media img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .schedule-upcoming-fallback {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(26, 26, 24, 0.45);
+    }
+
+    .schedule-upcoming-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .schedule-upcoming-date {
+        display: grid;
+        gap: 2px;
+    }
+
+    .schedule-upcoming-date strong {
+        font-size: 11px;
+    }
+
+    .schedule-upcoming-date span {
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--gray-text);
+    }
+
+    .schedule-upcoming-topic {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--dark);
+    }
+
+    .schedule-empty {
+        padding: 32px 20px;
+        border-radius: 18px;
+        text-align: center;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f7f1e8);
+        color: var(--gray-text);
+    }
+
+    @media (max-width: 1100px) {
+        .schedule-hero-grid,
+        .schedule-board {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 780px) {
+        .schedule-hero,
+        .schedule-panel {
+            padding: 16px;
+            border-radius: 16px;
+        }
+
+        .schedule-metrics,
+        .schedule-job-grid,
+        .schedule-job-meta {
+            grid-template-columns: 1fr;
+        }
+
+        .schedule-job-actions,
+        .schedule-upcoming-meta {
+            align-items: start;
+            flex-direction: column;
+        }
+
+        .schedule-run-button {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set totals = namespace(total=schedule|length, next=0, success=0, failure=0) %}
+{% for job in schedule %}
+    {% if next_runs.get(job.task) %}
+        {% set totals.next = totals.next + 1 %}
+    {% endif %}
+    {% if job.last_success %}
+        {% set totals.success = totals.success + 1 %}
+    {% endif %}
+    {% if job.last_failure %}
+        {% set totals.failure = totals.failure + 1 %}
+    {% endif %}
+{% endfor %}
+
+<div class="schedule-shell">
+    <section class="schedule-hero">
+        <div class="schedule-hero-grid">
+            <div>
+                <p class="schedule-kicker">Operations rhythm</p>
+                <h1 class="schedule-title">Schedule</h1>
+                <p class="schedule-intro">
+                    Review jobs, check the next run, and trigger tasks when needed.
+                </p>
+                <div class="cascade-trigger" id="cascade-trigger">
+                    <button class="btn btn-primary"
+                            hx-post="/schedule/run-planning-cascade"
+                            hx-target="#cascade-trigger"
+                            hx-swap="innerHTML"
+                            hx-disabled-elt="this"
+                            hx-confirm="Run the full planning cascade (culinary review → content planning → design review → image generation) for {{ current_brand_name }} now?">
+                        <span class="loading loading-spinner loading-xs htmx-indicator"></span>
+                        Run planning cascade
+                    </button>
+                    <span class="cascade-hint">
+                        Off-schedule run of the Sunday pipeline for {{ current_brand_name }}.
+                    </span>
+                </div>
+                <div class="schedule-metrics">
+                    <div class="schedule-metric">
+                        <span class="schedule-metric-label">Tracked jobs</span>
+                        <span class="schedule-metric-value">{{ totals.total }}</span>
+                        <span class="schedule-metric-note">Every automated task in one view</span>
+                    </div>
+                    <div class="schedule-metric">
+                        <span class="schedule-metric-label">Live next runs</span>
+                        <span class="schedule-metric-value">{{ totals.next }}</span>
+                        <span class="schedule-metric-note">Schedulers currently reporting</span>
+                    </div>
+                    <div class="schedule-metric">
+                        <span class="schedule-metric-label">Recent failures</span>
+                        <span class="schedule-metric-value">{{ totals.failure }}</span>
+                        <span class="schedule-metric-note">Tasks worth checking first</span>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="schedule-focus-card">
+                <p class="schedule-focus-label">Focus signal</p>
+                <h2 class="schedule-focus-value">
+                    {% if totals.failure %}
+                        {{ totals.failure }} task{{ 's' if totals.failure != 1 }} need attention
+                    {% elif totals.next %}
+                        {{ totals.next }} task{{ 's' if totals.next != 1 }} queued next
+                    {% else %}
+                        Scheduler status is quiet
+                    {% endif %}
+                </h2>
+                <ul class="schedule-focus-list">
+                    <li><span>Healthy jobs</span><strong>{{ totals.success }}</strong></li>
+                    <li><span>Upcoming posts</span><strong>{{ upcoming|length }}</strong></li>
+                    <li><span>Run history source</span><strong>Live log</strong></li>
+                </ul>
+            </aside>
+        </div>
+    </section>
+
+    <section class="schedule-board">
+        <div class="schedule-panel">
+            <span class="schedule-section-label">Scheduled jobs</span>
+            <h2 class="schedule-section-title">Jobs</h2>
+
+            <div class="schedule-job-grid">
+                {% for job in schedule %}
+                {% set has_failure = job.last_failure %}
+                {% set has_success = job.last_success %}
+                {% set next_run = next_runs.get(job.task) %}
+                {% if has_failure %}
+                    {% set tone = "is-failure" %}
+                    {% set state_label = "Needs review" %}
+                {% elif next_run %}
+                    {% set tone = "is-upcoming" %}
+                    {% set state_label = "Queued" %}
+                {% elif has_success %}
+                    {% set tone = "is-success" %}
+                    {% set state_label = "Healthy" %}
+                {% else %}
+                    {% set tone = "" %}
+                    {% set state_label = "Awaiting run" %}
+                {% endif %}
+                <article class="schedule-job-card {{ tone }}">
+                    <div class="schedule-job-top">
+                        <div>
+                            <h3 class="schedule-job-title">{{ job.label }}</h3>
+                            <div class="schedule-job-cron">{{ job.cron }}</div>
+                        </div>
+                        <span class="schedule-job-state {{ tone or 'is-upcoming' }}">{{ state_label }}</span>
+                    </div>
+
+                    <div class="schedule-job-meta">
+                        <div class="schedule-job-meta-block">
+                            <span class="schedule-job-meta-label">Next run</span>
+                            <span class="schedule-job-meta-value {% if not next_run %}is-empty{% endif %}">
+                                {{ next_run or 'Waiting for scheduler' }}
+                            </span>
+                        </div>
+                        <div class="schedule-job-meta-block">
+                            <span class="schedule-job-meta-label">Last success</span>
+                            <span class="schedule-job-meta-value {% if not job.last_success %}is-empty{% endif %}">
+                                {{ job.last_success | datefmt if job.last_success else 'No success yet' }}
+                            </span>
+                        </div>
+                        <div class="schedule-job-meta-block">
+                            <span class="schedule-job-meta-label">Last failure</span>
+                            <span class="schedule-job-meta-value {% if not job.last_failure %}is-empty{% endif %}">
+                                {{ job.last_failure | datefmt if job.last_failure else 'None recorded' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="schedule-job-actions">
+                        <div class="text-sm text-muted">
+                            {% if has_failure %}
+                                Check the latest failure details before the next cycle.
+                            {% elif next_run %}
+                                The next scheduled execution is already locked in.
+                            {% else %}
+                                Safe to trigger manually when you need fresh output.
+                            {% endif %}
+                        </div>
+                        <button class="btn btn-primary schedule-run-button"
                                 hx-post="/schedule/{{ job.task }}/run"
                                 hx-swap="outerHTML"
+                                hx-disabled-elt="this"
                                 hx-confirm="Run {{ job.label }} now?">
-                            Run Now
+                            <span class="loading loading-spinner loading-xs htmx-indicator"></span>
+                            Run now
                         </button>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
 
-<!-- Upcoming Content -->
-<div class="section-label">Upcoming Content</div>
-{% if upcoming %}
-<div class="card">
-    <div class="timeline">
-        {% for post in upcoming %}
-        <a href="/queue/{{ post.id }}" class="timeline-item" style="text-decoration:none;color:inherit">
-            {% if post.image_url %}
-            <img src="{{ post.image_url }}" alt="" class="timeline-thumb" loading="lazy">
-            {% else %}
-            <div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--gray-text)">No img</div>
-            {% endif %}
-            <div class="timeline-date">{{ post.scheduled_date or '' }}</div>
-            <div class="text-xs text-muted">{{ (post.scheduled_time or '')[:5] }}</div>
-            <span class="badge badge-{{ post.status }}" style="margin-top:4px">{{ post.status.replace('_',' ') }}</span>
-            <div class="text-xs rtl" style="margin-top:4px">{{ (post.topic or '')[:30] }}</div>
-        </a>
-        {% endfor %}
-    </div>
+        <aside class="schedule-panel schedule-panel-dark">
+            <span class="schedule-section-label">Control notes</span>
+            <h2 class="schedule-section-title">Overview</h2>
+
+            <div class="schedule-aside-stack">
+                <div class="schedule-aside-card">
+                    <strong>Publishing runway</strong>
+                    <p>
+                        {{ upcoming|length }} piece{{ 's' if upcoming|length != 1 }} are currently lined up across draft, pending approval, and approved states.
+                    </p>
+                </div>
+
+                <div class="schedule-aside-card">
+                    <strong>Board breakdown</strong>
+                    <ul class="schedule-aside-list">
+                        <li><span class="schedule-aside-key">Healthy</span><span class="schedule-aside-value">{{ totals.success }}</span></li>
+                        <li><span class="schedule-aside-key">Queued next</span><span class="schedule-aside-value">{{ totals.next }}</span></li>
+                        <li><span class="schedule-aside-key">Failures logged</span><span class="schedule-aside-value">{{ totals.failure }}</span></li>
+                    </ul>
+                </div>
+
+                <div class="schedule-aside-card">
+                    <strong>Suggested review order</strong>
+                    <p>Failures first, empty next-run slots second, then upcoming assets that still need approval or imagery.</p>
+                </div>
+            </div>
+        </aside>
+    </section>
+
+    <section class="schedule-panel">
+        <span class="schedule-section-label">Upcoming content</span>
+        <h2 class="schedule-section-title">Upcoming</h2>
+
+        {% if upcoming %}
+        <div class="schedule-upcoming-rail">
+            {% for post in upcoming %}
+            <a href="/queue/{{ post.id }}" class="schedule-upcoming-card">
+                <div class="schedule-upcoming-media">
+                    {% if post.image_url %}
+                    <img src="{{ post.image_url }}" alt="" loading="lazy">
+                    {% else %}
+                    <div class="schedule-upcoming-fallback">Image pending</div>
+                    {% endif %}
+                </div>
+                <div class="schedule-upcoming-meta">
+                    <div class="schedule-upcoming-date">
+                        <strong>{{ post.scheduled_date or 'Date pending' }}</strong>
+                        <span>{{ (post.scheduled_time or 'Time pending')[:5] }}{% if post.content_type %} · {{ post.content_type }}{% endif %}</span>
+                    </div>
+                    <span class="badge badge-{{ post.status }}">{{ post.status.replace('_', ' ') }}</span>
+                </div>
+                <p class="schedule-upcoming-topic" dir="rtl">{{ post.topic or 'No topic yet' }}</p>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="schedule-empty">
+            No upcoming content is scheduled yet.
+        </div>
+        {% endif %}
+    </section>
 </div>
-{% else %}
-<div class="empty-state">
-    <div class="empty-state-text">No upcoming content scheduled</div>
-</div>
-{% endif %}
 {% endblock %}

@@ -84,10 +84,15 @@ async def schedule_page(request: Request):
     })
 
 
+def _bot_for_brand(request: Request, brand_id: str):
+    """Return the Telegram bot registered for this brand, falling back to the primary bot."""
+    brand_bots = getattr(request.app.state, "brand_bots", {}) or {}
+    return brand_bots.get(brand_id) or request.app.state.bot
+
+
 @router.post("/schedule/{task_type}/run", response_class=HTMLResponse)
 async def trigger_task(request: Request, task_type: str):
     safe_run = request.app.state.safe_run
-    bot = request.app.state.bot
 
     if not safe_run:
         return HTMLResponse('<span class="badge badge-failed">No runner available</span>')
@@ -101,8 +106,9 @@ async def trigger_task(request: Request, task_type: str):
     trigger_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     brand_id = get_dashboard_brand(request)
+    bot = _bot_for_brand(request, brand_id)
     log.info(f"Dashboard triggered task: {task_type} for brand: {brand_id}")
-    asyncio.create_task(safe_run(task_type, bot))
+    asyncio.create_task(safe_run(task_type, bot, brand_id))
 
     return HTMLResponse(
         f'<div class="run-status" '
@@ -110,6 +116,79 @@ async def trigger_task(request: Request, task_type: str):
         f'hx-trigger="every 2s" hx-swap="outerHTML">'
         f'<span class="badge badge-running">Running {task_type}...</span>'
         f'</div>'
+    )
+
+
+PLANNING_CASCADE = ("culinary_review", "content_planning", "design_review", "image_generation")
+
+
+@router.post("/schedule/run-planning-cascade", response_class=HTMLResponse)
+async def trigger_planning_cascade(request: Request):
+    """Run the full Sunday planning pipeline on demand for the selected brand."""
+    safe_run = request.app.state.safe_run
+    if not safe_run:
+        return HTMLResponse('<span class="badge badge-failed">No runner available</span>')
+
+    from datetime import datetime, timezone
+    trigger_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    brand_id = get_dashboard_brand(request)
+    bot = _bot_for_brand(request, brand_id)
+    log.info(f"Dashboard triggered planning cascade for brand: {brand_id}")
+
+    async def _cascade():
+        for task in PLANNING_CASCADE:
+            await safe_run(task, bot, brand_id)
+
+    asyncio.create_task(_cascade())
+
+    return HTMLResponse(
+        f'<div class="run-status" '
+        f'hx-get="/schedule/cascade/last-run?after={trigger_ts}" '
+        f'hx-trigger="every 3s" hx-swap="outerHTML">'
+        f'<span class="badge badge-running">Running planning cascade...</span>'
+        f'</div>'
+    )
+
+
+@router.get("/schedule/cascade/last-run", response_class=HTMLResponse)
+async def cascade_status(request: Request):
+    """Poll endpoint for the planning cascade: reports progress task-by-task."""
+    after = request.query_params.get("after", "")
+    brand_id = get_dashboard_brand(request)
+
+    rows = await query(
+        "SELECT task_type, status, summary, error, duration_seconds, started_at "
+        "FROM run_log WHERE task_type IN (?, ?, ?, ?) "
+        "AND started_at >= ? AND brand_id = ? ORDER BY started_at",
+        (*PLANNING_CASCADE, after, brand_id),
+    )
+
+    done_map = {r["task_type"]: r for r in rows}
+    # Cascade is finished when the last stage has a terminal status
+    last = done_map.get(PLANNING_CASCADE[-1])
+    finished = last and last["status"] in ("completed", "failed", "skipped", "timeout")
+
+    parts = []
+    for task in PLANNING_CASCADE:
+        r = done_map.get(task)
+        if not r:
+            parts.append(f'<span class="badge badge-running">{task}…</span>')
+        else:
+            parts.append(f'<span class="badge badge-{r["status"]}">{task}</span>')
+
+    if finished:
+        return HTMLResponse(
+            '<div class="run-status">'
+            + " ".join(parts)
+            + "</div>"
+        )
+    return HTMLResponse(
+        f'<div class="run-status" '
+        f'hx-get="/schedule/cascade/last-run?after={after}" '
+        f'hx-trigger="every 3s" hx-swap="outerHTML">'
+        + " ".join(parts)
+        + "</div>"
     )
 
 
@@ -142,7 +221,7 @@ async def last_run_status(request: Request, task_type: str):
     return HTMLResponse(
         f'<div class="run-status">'
         f'<span class="badge badge-{status}">{status}</span>'
-        f'<span class="text-xs text-muted" style="margin-left:8px">{duration:.1f}s</span>'
-        f'<div class="text-xs text-muted" style="margin-top:4px">{detail[:200]}</div>'
+        f'<span class="text-xs opacity-50 ml-2">{duration:.1f}s</span>'
+        f'<div class="text-xs opacity-50 mt-1">{detail[:200]}</div>'
         f'</div>'
     )
