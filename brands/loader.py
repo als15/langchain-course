@@ -52,6 +52,7 @@ class VisualConfig:
     style_description: str = ""
     image_base_prompt: str = ""
     image_negative_prompt: str = ""
+    subject_constraint: str = ""
     bg_objects: list[str] = field(default_factory=list)
     bg_colors: list[str] = field(default_factory=list)
     color_palette: dict[str, str] = field(default_factory=dict)

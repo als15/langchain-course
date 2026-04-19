@@ -45,6 +45,10 @@ visual:
     no realistic street grit. No pastries, no croissants, no bread, no cake,
     no cookies, no chicken, no salad, no pizza, no sandwiches, no savory food,
     no baked goods, no donuts, no muffins, no pies, no non-ice-cream food items.
+  subject_constraint: >
+    This is an ice cream and gelato brand ONLY.
+    The only food shown must be ice cream, gelato, sorbet, waffle cones,
+    or ice cream toppings. Do not depict any other food items.
   bg_objects:
     - 'white branded ice cream truck'
     - 'waffle cones'

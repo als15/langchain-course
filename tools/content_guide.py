@@ -123,7 +123,7 @@ def build_image_prompt(visual_direction: str) -> str:
 
     If the visual_direction matches a menu item from the content guide, the expert
     per-dish prompt is used. Otherwise, the raw direction is wrapped with brand styling
-    and an ice-cream-only constraint to prevent off-brand food from appearing.
+    and (if configured) the brand's subject_constraint to prevent off-brand output.
 
     Args:
         visual_direction: A dish name (e.g. 'Pistachio + Vanilla Waffle Cone') or free-form image description.
@@ -134,13 +134,31 @@ def build_image_prompt(visual_direction: str) -> str:
     if dish_prompt:
         core = f"{dish_prompt} {_brand_suffix()}"
     else:
-        # Enforce ice-cream-only constraint for free-form directions that
-        # didn't match a known menu item.
-        ice_cream_guard = (
-            "This is an ice cream and gelato brand ONLY. "
-            "The only food shown must be ice cream, gelato, sorbet, waffle cones, "
-            "or ice cream toppings. Do not depict any other food items."
-        )
-        core = f"{visual_direction}, {ice_cream_guard} {_brand_suffix()}"
+        # For free-form directions that didn't match a menu item, apply the
+        # brand's optional subject constraint (e.g. Mila's ice-cream-only
+        # guard). Brands without a constraint pass through unchanged.
+        constraint = _brand_loader.brand_config.visual.subject_constraint.strip()
+        if constraint:
+            core = f"{visual_direction}, {constraint} {_brand_suffix()}"
+        else:
+            core = f"{visual_direction}, {_brand_suffix()}"
 
     return f"{core}. Avoid: {negative}"
+
+
+def build_reference_edit_prompt(visual_direction: str) -> str:
+    """Build a minimal prompt for reference-image-driven edits.
+
+    The flux-2-pro/edit endpoint uses the supplied reference image as the
+    primary visual anchor — style, lighting, and composition are inherited
+    from it. Wrapping the user's description with the full brand template
+    (image_base_prompt, random bg objects, negative prompt) instructs the
+    model to override the reference, which produces off-target results.
+    Instead, pass only the user's direction with a short instruction to
+    preserve the reference's style.
+    """
+    direction = visual_direction.strip()
+    return (
+        f"{direction}. Match the visual style, lighting, color palette, "
+        "and composition of the reference image."
+    )
