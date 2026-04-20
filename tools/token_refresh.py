@@ -1,4 +1,12 @@
-"""Instagram long-lived access token refresh.
+"""Meta (Facebook Graph API) long-lived access token refresh.
+
+Publishing uses the FB Login flow (graph.facebook.com/{ig-user-id}/media
+with an FB user access token), so the refresh path must also use the FB
+Login flow: `fb_exchange_token` against graph.facebook.com/oauth/access_token.
+The earlier implementation called graph.instagram.com/refresh_access_token
+with grant_type=ig_refresh_token — that endpoint is for the IG Login flow
+and silently fails on FB user tokens, which is why short-lived bootstrap
+tokens were dying after ~1–2h without ever being extended.
 
 Tokens are stored in the brand_credentials table under the key
 META_ACCESS_TOKEN so they survive Railway redeploys. The env var
@@ -6,7 +14,7 @@ MILA_META_ACCESS_TOKEN (and equivalents for other brands) is used only
 for bootstrap — once a refresh has written to the DB, the DB is
 canonical.
 
-See GitHub issue #1 for the incident that motivated this.
+See GitHub issue #1 for the incident that motivated persisting to the DB.
 """
 
 from __future__ import annotations
@@ -42,7 +50,12 @@ def _read_current_token(brand_slug: str) -> str:
 
 
 def refresh_meta_token(brand_slug: str) -> str:
-    """Refresh the Instagram long-lived token for a brand.
+    """Exchange the current token for a long-lived (60-day) FB user token.
+
+    Works for both a freshly-issued short-lived token (gets upgraded to
+    long-lived) and an already-long-lived token (Meta returns a new
+    long-lived token; note that this does not reset the 60-day clock when
+    the input is already long-lived — that's a Meta constraint).
 
     Writes the new token (with computed expiry) to brand_credentials
     and updates os.environ for the current process. Returns the new token.
@@ -53,9 +66,22 @@ def refresh_meta_token(brand_slug: str) -> str:
             f"No META_ACCESS_TOKEN for brand {brand_slug}: neither DB nor env has one."
         )
 
+    app_id = os.environ.get("META_APP_ID")
+    app_secret = os.environ.get("META_APP_SECRET")
+    if not app_id or not app_secret:
+        raise RuntimeError(
+            f"META_APP_ID / META_APP_SECRET missing for {brand_slug}; "
+            "cannot exchange for long-lived token."
+        )
+
     resp = requests.get(
-        "https://graph.instagram.com/refresh_access_token",
-        params={"grant_type": "ig_refresh_token", "access_token": current_token},
+        "https://graph.facebook.com/v21.0/oauth/access_token",
+        params={
+            "grant_type": "fb_exchange_token",
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "fb_exchange_token": current_token,
+        },
         timeout=30,
     )
     resp.raise_for_status()

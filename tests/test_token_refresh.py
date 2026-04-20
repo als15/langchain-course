@@ -99,11 +99,20 @@ class TokenRefreshTests(unittest.TestCase):
         finally:
             os.environ.pop("META_ACCESS_TOKEN", None)
 
+    def _set_app_creds(self):
+        os.environ["META_APP_ID"] = "app-id"
+        os.environ["META_APP_SECRET"] = "app-secret"
+
+    def _clear_app_creds(self):
+        os.environ.pop("META_APP_ID", None)
+        os.environ.pop("META_APP_SECRET", None)
+
     def test_refresh_writes_new_token_and_expiry_to_db(self):
         from tools.brand_credentials import get_credential, set_credential
         from tools.token_refresh import refresh_meta_token
 
         set_credential("mila", "META_ACCESS_TOKEN", "old-token")
+        self._set_app_creds()
 
         class FakeResp:
             status_code = 200
@@ -114,18 +123,34 @@ class TokenRefreshTests(unittest.TestCase):
             def json(self):
                 return {"access_token": "new-token", "expires_in": 60 * 24 * 3600}
 
-        with patch("tools.token_refresh.requests.get", return_value=FakeResp()):
-            returned = refresh_meta_token("mila")
+        captured = {}
+
+        def fake_get(url, params=None, timeout=None):
+            captured["url"] = url
+            captured["params"] = params
+            return FakeResp()
+
+        try:
+            with patch("tools.token_refresh.requests.get", side_effect=fake_get):
+                returned = refresh_meta_token("mila")
+        finally:
+            self._clear_app_creds()
+            os.environ.pop("META_ACCESS_TOKEN", None)
 
         self.assertEqual(returned, "new-token")
+        self.assertEqual(
+            captured["url"], "https://graph.facebook.com/v21.0/oauth/access_token"
+        )
+        self.assertEqual(captured["params"]["grant_type"], "fb_exchange_token")
+        self.assertEqual(captured["params"]["fb_exchange_token"], "old-token")
+        self.assertEqual(captured["params"]["client_id"], "app-id")
+        self.assertEqual(captured["params"]["client_secret"], "app-secret")
         cred = get_credential("mila", "META_ACCESS_TOKEN")
         self.assertEqual(cred.value, "new-token")
         self.assertIsNotNone(cred.expires_at)
         days = (cred.expires_at - datetime.now(timezone.utc)).days
         self.assertGreaterEqual(days, 58)
         self.assertLessEqual(days, 60)
-        self.assertEqual(os.environ.get("META_ACCESS_TOKEN"), "new-token")
-        os.environ.pop("META_ACCESS_TOKEN", None)
 
     def test_refresh_raises_when_no_bootstrap_token(self):
         from tools.token_refresh import refresh_meta_token
@@ -134,11 +159,23 @@ class TokenRefreshTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             refresh_meta_token("mila")
 
+    def test_refresh_raises_when_app_creds_missing(self):
+        from tools.token_refresh import refresh_meta_token
+
+        os.environ["META_ACCESS_TOKEN"] = "bootstrap-token"
+        self._clear_app_creds()
+        try:
+            with self.assertRaises(RuntimeError):
+                refresh_meta_token("mila")
+        finally:
+            os.environ.pop("META_ACCESS_TOKEN", None)
+
     def test_refresh_falls_back_to_default_ttl_when_api_omits_expires_in(self):
         from tools.brand_credentials import get_credential
         from tools.token_refresh import refresh_meta_token
 
         os.environ["META_ACCESS_TOKEN"] = "bootstrap-token"
+        self._set_app_creds()
 
         class FakeResp:
             def raise_for_status(self):
@@ -156,6 +193,7 @@ class TokenRefreshTests(unittest.TestCase):
             self.assertGreaterEqual(days, 58)
         finally:
             os.environ.pop("META_ACCESS_TOKEN", None)
+            self._clear_app_creds()
 
 
 if __name__ == "__main__":

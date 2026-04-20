@@ -49,7 +49,7 @@ The system runs 6 specialized agents on an automated schedule, generates photore
          │                            │
          ▼                            ▼
    Instagram API              FLUX (fal.ai)
-   (Meta Graph)               + imgbb hosting
+   (Meta Graph)               + Cloudinary hosting
 ```
 
 ## The 6 Agents
@@ -71,7 +71,7 @@ The system runs 6 specialized agents on an automated schedule, generates photore
 - Picks up drafts that don't have images yet
 - Builds detailed prompts following the brand style guide
 - Generates images via FLUX AI (fal.ai) — the most photorealistic model available
-- Uploads images to imgbb for permanent public URLs
+- Uploads images to Cloudinary for permanent public URLs
 - Updates post status to `pending_approval` and triggers Telegram notifications
 
 **Style:** RAW photorealistic food photography. Vegetarian sandwiches only. Artisan bread, fresh ingredients, clean minimal background, magazine-quality, 85mm lens, f/2.8.
@@ -130,7 +130,7 @@ The system runs 6 specialized agents on an automated schedule, generates photore
        ├─── status: draft ───────►│                     │                    │
        │                          │ generates FLUX      │                    │
        │                          │ image, uploads to   │                    │
-       │                          │ imgbb               │                    │
+       │                          │ Cloudinary          │                    │
        │                          │                     │                    │
        │                          ├── Telegram ────────►│                    │
        │                          │   notification      │                    │
@@ -238,7 +238,7 @@ uv run python review.py              # Review dashboard
 | `TELEGRAM_CHAT_ID` | Your Telegram chat ID | Yes |
 | `TELEGRAM_AUTHORIZED_USERS` | Comma-separated authorized user IDs | Recommended |
 | `FAL_KEY` | fal.ai API key for FLUX image generation | Yes |
-| `IMGBB_API_KEY` | imgbb API key for image hosting | Yes |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary credentials for image hosting | Yes |
 | `TAVILY_API_KEY` | Tavily API key for web search | Yes |
 | `LANGSMITH_API_KEY` | LangSmith observability (optional) | No |
 | `DATABASE_PATH` | Custom SQLite path (default: data/capaco.db) | No |

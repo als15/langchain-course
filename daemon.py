@@ -506,9 +506,12 @@ def _register_brand_jobs(scheduler, bot, bc):
                       args=["engagement", bot, slug], id=f"engagement_{slug}",
                       timezone=bc.identity.timezone)
 
-    # Token refresh
+    # Token refresh — fire once at startup (converts a freshly-rotated
+    # short-lived bootstrap token to a 60-day long-lived one before the ~1–2h
+    # session TTL expires), then every token_refresh_days after.
     scheduler.add_job(safe_refresh_token, "interval", days=sched.token_refresh_days,
-                      args=[bot, slug], id=f"token_refresh_{slug}")
+                      args=[bot, slug], id=f"token_refresh_{slug}",
+                      next_run_time=datetime.now())
 
     # Daily token expiry check — proactive alert, independent of refresh cadence
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
