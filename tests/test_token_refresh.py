@@ -9,6 +9,7 @@ not re-tested here.
 import os
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -194,6 +195,99 @@ class TokenRefreshTests(unittest.TestCase):
         finally:
             os.environ.pop("META_ACCESS_TOKEN", None)
             self._clear_app_creds()
+
+
+class SetBrandHydrationTests(unittest.TestCase):
+    """Regression tests for the Apr-2026 token expiry incident.
+
+    ``set_brand()`` used to wipe os.environ back to the baseline host env and
+    reapply the short-lived bootstrap ``MILA_META_ACCESS_TOKEN`` — silently
+    clobbering the 60-day token that the scheduled refresh had written to the
+    brand_credentials table. The result was that every scheduled task and
+    health check hit Meta with an expired bootstrap even though the DB held
+    a valid long-lived token. The hydration hook in set_brand closes that gap.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self._tmp.close()
+        self._prev_db_url = os.environ.pop("DATABASE_URL", None)
+        self._prev_db_path = os.environ.get("DATABASE_PATH")
+        os.environ["DATABASE_PATH"] = self._tmp.name
+
+        from brands import loader as loader_mod
+        from db import connection as conn_mod
+        from db import schema as schema_mod
+
+        conn_mod._local.__dict__.pop("connection", None)
+        schema_mod._init_done = False
+        schema_mod.init_db()
+
+        # Reset the base-env snapshot so our injected env is treated as the
+        # pristine host environment rather than leaking from an earlier test.
+        loader_mod._BASE_ENV = None
+
+        # Prevent a real ``brands/<slug>/.env`` (e.g. a dev checkout with
+        # populated Meta credentials) from leaking a real token into the test
+        # process via load_dotenv. We force env_path.exists() to False so the
+        # loader skips the dotenv step entirely.
+        self._exists_patcher = patch(
+            "brands.loader.BrandConfig.env_path",
+            new_callable=unittest.mock.PropertyMock,
+        )
+        mock_env_path = self._exists_patcher.start()
+        mock_env_path.return_value = loader_mod.Path("/nonexistent/.env")
+
+        self._conn_mod = conn_mod
+        self._schema_mod = schema_mod
+        self._loader_mod = loader_mod
+
+    def tearDown(self):
+        self._exists_patcher.stop()
+        self._conn_mod._local.__dict__.pop("connection", None)
+        os.unlink(self._tmp.name)
+        if self._prev_db_url is not None:
+            os.environ["DATABASE_URL"] = self._prev_db_url
+        if self._prev_db_path is not None:
+            os.environ["DATABASE_PATH"] = self._prev_db_path
+        else:
+            os.environ.pop("DATABASE_PATH", None)
+        for k in ("META_ACCESS_TOKEN", "MILA_META_ACCESS_TOKEN"):
+            os.environ.pop(k, None)
+        self._schema_mod._init_done = False
+        self._loader_mod._BASE_ENV = None
+
+    def test_set_brand_hydrates_persisted_token_over_bootstrap(self):
+        from brands.loader import set_brand
+        from tools.brand_credentials import set_credential
+
+        os.environ["MILA_META_ACCESS_TOKEN"] = "short-lived-bootstrap"
+        set_credential("mila", "META_ACCESS_TOKEN", "long-lived-from-db")
+
+        set_brand("mila")
+
+        self.assertEqual(os.environ["META_ACCESS_TOKEN"], "long-lived-from-db")
+
+    def test_set_brand_falls_through_to_bootstrap_when_db_empty(self):
+        from brands.loader import set_brand
+
+        os.environ["MILA_META_ACCESS_TOKEN"] = "bootstrap-only"
+
+        set_brand("mila")
+
+        self.assertEqual(os.environ["META_ACCESS_TOKEN"], "bootstrap-only")
+
+    def test_set_brand_survives_missing_db(self):
+        """Pre-init_db() contexts (main.py CLI) must not crash on set_brand."""
+        from brands.loader import set_brand
+
+        # Drop the creds table to simulate a pre-init_db state.
+        self._conn_mod.get_db().execute("DROP TABLE brand_credentials")
+        os.environ["MILA_META_ACCESS_TOKEN"] = "bootstrap"
+
+        # Should not raise.
+        set_brand("mila")
+        self.assertEqual(os.environ["META_ACCESS_TOKEN"], "bootstrap")
 
 
 if __name__ == "__main__":

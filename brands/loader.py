@@ -217,6 +217,32 @@ def _apply_prefixed_env(slug: str) -> None:
             os.environ[k[len(prefix):]] = v
 
 
+def _hydrate_persisted_meta_token(slug: str) -> None:
+    """Overwrite ``META_ACCESS_TOKEN`` with the DB-persisted long-lived token.
+
+    Without this, every ``set_brand()`` call resets the env to baseline and
+    reapplies the short-lived bootstrap token from the host env — silently
+    clobbering the 60-day token written by the scheduled refresh. Scheduled
+    tasks, web handlers, and the health check would then hit Meta with the
+    stale bootstrap, which expires inside ~1–2h for freshly-issued session
+    tokens (see GitHub issue #1 + the Apr-2026 token-expiry incident).
+
+    Swallows exceptions so that pre-``init_db`` contexts (main.py invokes
+    ``init_brand`` before ``init_db``; tests may skip DB setup entirely) don't
+    fail brand initialization. The DB isn't authoritative until the first
+    refresh runs, so a silent miss here just means we fall through to the
+    env-provided bootstrap — the original behaviour.
+    """
+    try:
+        from tools.token_refresh import load_persisted_token
+        load_persisted_token(slug)
+    except Exception:
+        # DB not initialized yet, creds table missing, or import-time side
+        # effect we shouldn't block on. Caller will hydrate explicitly later
+        # if needed.
+        pass
+
+
 def init_brand(slug: str | None = None) -> BrandConfig:
     """Initialize the global brand_config singleton.
 
@@ -243,6 +269,7 @@ def init_brand(slug: str | None = None) -> BrandConfig:
         load_dotenv(brand_config.env_path, override=True)
 
     _apply_prefixed_env(slug)
+    _hydrate_persisted_meta_token(slug)
 
     return brand_config
 
@@ -262,6 +289,7 @@ def set_brand(slug: str) -> BrandConfig:
         load_dotenv(brand_config.env_path, override=True)
 
     _apply_prefixed_env(slug)
+    _hydrate_persisted_meta_token(slug)
 
     return brand_config
 

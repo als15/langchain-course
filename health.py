@@ -24,12 +24,8 @@ def check_db() -> tuple[bool, str]:
         return False, f"unreachable: {e}"
 
 
-def check_instagram_token() -> tuple[bool, str]:
-    """Verify Meta access token is valid."""
-    token = os.environ.get("META_ACCESS_TOKEN", "")
-    acct_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "")
-    if not token or not acct_id:
-        return False, "META_ACCESS_TOKEN or INSTAGRAM_ACCOUNT_ID not set"
+def _probe_token(token: str, acct_id: str) -> tuple[bool, str]:
+    """Hit the Graph API with a given token; returns (ok, detail)."""
     try:
         resp = requests.get(
             f"https://graph.facebook.com/v21.0/{acct_id}",
@@ -38,13 +34,53 @@ def check_instagram_token() -> tuple[bool, str]:
             timeout=5,
         )
         if resp.status_code == 200:
-            return True, f"valid (@{resp.json().get('username', '?')})"
+            return True, f"@{resp.json().get('username', '?')}"
         error = resp.json().get("error", {}).get("message", resp.text[:100])
-        return False, f"invalid: {error}"
+        return False, error
     except requests.Timeout:
         return False, "timeout reaching Meta API"
     except Exception as e:
         return False, f"error: {e}"
+
+
+def check_instagram_token() -> tuple[bool, str]:
+    """Verify every brand's persisted Meta access token is valid.
+
+    Reads tokens from the ``brand_credentials`` table instead of ``os.environ``
+    so the result doesn't depend on which brand most-recently called
+    ``set_brand()`` (the env value drifts between brands and reverts to the
+    short-lived bootstrap whenever a scheduled task resets it). INSTAGRAM_ACCOUNT_ID
+    is still pulled per-brand via ``set_brand()``, which also re-hydrates the
+    token for other consumers in this thread.
+    """
+    from brands.loader import _list_brands, set_brand
+    from tools.token_refresh import token_status
+
+    brands = _list_brands()
+    if not brands:
+        return False, "no brands configured"
+
+    results: list[str] = []
+    all_ok = True
+    for slug in brands:
+        cred = token_status(slug)
+        if not cred or not cred.value:
+            all_ok = False
+            results.append(f"{slug}: no persisted token (awaiting first refresh)")
+            continue
+        set_brand(slug)
+        acct_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "")
+        if not acct_id:
+            all_ok = False
+            results.append(f"{slug}: INSTAGRAM_ACCOUNT_ID not set")
+            continue
+        ok, detail = _probe_token(cred.value, acct_id)
+        if ok:
+            results.append(f"{slug}: valid ({detail})")
+        else:
+            all_ok = False
+            results.append(f"{slug}: invalid: {detail}")
+    return all_ok, "; ".join(results)
 
 
 def check_scheduler(scheduler) -> tuple[bool, str]:

@@ -18,7 +18,6 @@ from db.schema import init_db
 from db.connection import get_db
 from graph.orchestrator import run_task
 from tools.token_refresh import (
-    load_persisted_token,
     refresh_meta_token,
     token_expires_in_days,
 )
@@ -546,11 +545,11 @@ async def main():
     _tokens_seen = {}    # token -> Application
 
     for brand in all_brands:
-        set_brand(brand.slug)  # loads brand .env (sets TELEGRAM_BOT_TOKEN, CHAT_ID)
-        # Hydrate META_ACCESS_TOKEN from brand_credentials if a persisted
-        # token exists — this is what survives Railway redeploys. Falls
-        # through to the brand-prefixed env var on bootstrap (no DB row yet).
-        load_persisted_token(brand.slug)
+        # set_brand() applies brand-prefixed env vars *and* hydrates the
+        # persisted META_ACCESS_TOKEN from brand_credentials — so the 60-day
+        # token written by the scheduled refresh survives Railway redeploys
+        # and isn't clobbered by the short-lived bootstrap value from env.
+        set_brand(brand.slug)
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
         if not token:
